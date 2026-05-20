@@ -1,156 +1,220 @@
-📱 项目名称：Action2Control —— 通过动作控制手机 App
-一、项目概述
-目标：开发一个安卓 App，允许用户录制一段视频（或实时预览），自动识别其中的身体动作（如举手、下蹲、滑动手势等），并将这些动作映射为对手机其他 App（如抖音、快手）的控制指令（上滑、点赞、返回等）。
+# Action2Control - 通过身体动作控制手机 App
 
-核心理念：利用 MediaPipe 进行本地姿态估计，用 TensorFlow Lite 做轻量级动作分类，最后通过 AccessibilityService 实现对其他 App 的控制。
+## 项目概述
 
-技术栈：Kotlin + Jetpack Compose + MediaPipe + TensorFlow Lite + AccessibilityService。
+Action2Control 是一个创新的 Android 应用，允许用户通过身体动作（如举手、下蹲、挥手等）来控制其他 App（如抖音、快手）。用户录制一段自己做动作的视频，App 自动识别其中的姿态并映射为对应的控制指令（上滑刷视频、点赞、返回等）。
 
-二、环境与工具准备（请 AI 忽略环境安装，直接生成代码，但要在注释中说明依赖）
-Android Studio Hedgehog 或更新版本
+**核心理念**: 解放双手，用身体动作与手机互动。
 
-最低 SDK：API 24（Android 7.0）
+## 功能特性
 
-目标 SDK：API 34（Android 14）
+- **相机录制**: 使用 CameraX 录制高质量视频
+- **姿态识别**: MediaPipe Pose Landmarker 提取 33 个人体关键点
+- **动作分类**: TensorFlow Lite 轻量级模型实时分类
+- **手势控制**: AccessibilityService 模拟滑动手势和点击
+- **完整流程**: 录制 → 分析 → 执行，一键完成
 
-关键依赖：
+## 支持的动作
 
-com.google.mediapipe:tasks-vision:latest.release
+| 动作名称 | 手势效果 | 抖音/快手对应操作 |
+|---------|---------|-----------------|
+| `swipe_up` | 从屏幕底部向上滑 | 刷下一个视频 |
+| `swipe_down` | 从屏幕顶部向下滑 | 刷上一个视频 |
+| `like` | 屏幕中央点击 | 点赞 |
+| `back` | 全局返回 | 返回上一页 |
 
-org.tensorflow:tensorflow-lite:2.16.1
+## 技术栈
 
-org.tensorflow:tensorflow-lite-support:0.4.4
+- **语言**: Kotlin
+- **UI 框架**: Jetpack Compose
+- **最低 SDK**: API 24 (Android 7.0)
+- **目标 SDK**: API 34 (Android 14)
+- **相机**: CameraX (1.3.1)
+- **姿态识别**: MediaPipe Tasks Vision (0.10.14)
+- **动作分类**: TensorFlow Lite (2.16.1)
+- **手势控制**: AccessibilityService
 
-androidx.compose.ui:ui:1.7.0（等 Compose 全家桶）
+## 快速开始
 
-三、功能模块与开发顺序（AI 请按此顺序生成代码）
-模块 1：基础 UI 与权限申请
-功能：启动页 → 请求必要权限（相机、屏幕录制、无障碍服务）。
-关键类：MainActivity.kt、PermissionHelper.kt。
-AI 提示词片段：
+### 环境要求
 
-“请用 Kotlin + Jetpack Compose 编写一个主界面，底部有两个按钮：‘录制动作’和‘开始控制’。首先检查并请求 CAMERA 和 RECORD_AUDIO 权限（如果需要屏幕录制则使用 MediaProjection 的权限）。无障碍服务权限提供一个引导用户去设置页面开启的 Intent。”
+- Android Studio Hedgehog (2023.1.1) 或更新版本
+- JDK 17
+- Android SDK 34
+- 推荐真机测试（模拟器相机可能有问题）
 
-模块 2：屏幕录制（MediaProjection）
-功能：录制当前屏幕内容（或者前置/后置摄像头？——决定：用后置摄像头更方便做身体动作识别，所以不用屏幕录制，而是直接用 CameraX 获取视频流）。
-更正：为了“录制一段视频”，最简单的是打开相机预览并录制，而不是录制手机屏幕。这样用户对着摄像头做动作，App 记录并分析。
-所以：模块 2 = 相机预览 + 视频录制。
-关键类：CameraScreen.kt（使用 CameraX）、VideoRecorder.kt。
-AI 提示词：
+### 构建项目
 
-“使用 CameraX 实现一个全屏预览界面，可以开始/停止录制视频，录制完成后将视频文件保存到应用私有目录。用 Compose 布局，包含一个圆形录制按钮。”
+1. **克隆项目**
+   ```bash
+   git clone <repository-url>
+   cd Action2Control
+   ```
 
-模块 3：视频帧抽取与姿态估计（MediaPipe）
-功能：从录制的视频文件中逐帧读取，对每一帧调用 MediaPipe Pose Landmarker 获取 33 个人体关键点的坐标。
-关键类：PoseEstimator.kt、FrameExtractor.kt（使用 MediaMetadataRetriever）。
-AI 提示词：
+2. **打开 Android Studio**
+   - File → Open → 选择项目根目录
+   - 等待 Gradle 同步完成（首次需要下载依赖）
 
-“编写一个 PoseEstimator 类，输入一个视频文件路径，逐帧提取 Bitmap，并使用 MediaPipe Pose Landmarker 返回每帧的人体关键点列表（List<NormalizedLandmark>）。需要初始化 PoseLandmarker 选项，使用 POSE_LANDMARKER_TASK 模型，并配置为在 CPU 上运行。”
+3. **构建 APK**
+   ```bash
+   ./gradlew assembleDebug
+   ```
+   APK 输出路径: `app/build/outputs/apk/debug/app-debug.apk`
 
-模块 4：动作分类（TFLite 分类器）
-功能：将每一帧的姿态关键点（33×3 坐标）输入到一个小型 TensorFlow Lite 分类模型，输出动作标签（如 “swipe_up”, “like”, “wave_hand”）。
-注意：模型需要预训练。我们将提供一个假的占位模型用于演示，并提供一个训练脚本（Python）供用户自行扩展。
-关键类：ActionClassifier.kt。
-AI 提示词：
+4. **安装到设备**
+   ```bash
+   adb install app/build/outputs/apk/debug/app-debug.apk
+   ```
 
-“创建一个 ActionClassifier 类，加载 assets 目录下的‘action_model.tflite’模型（输入形状为 [1, 99] 即33关键点×3坐标，输出为 [1, 5] 对应5种动作的概率）。提供一个 classify(landmarks: List<NormalizedLandmark>): String 方法，返回概率最高的动作名称。模型不存在时返回‘unknown’，并给出 log 警告。”
+## 使用指南
 
-同时，生成一个简单的 Python 脚本（train_model.py）用来训练一个虚拟的 5 类动作分类器，并转换成 tflite 格式，放在 assets 里。
+### 第一步：授予权限
 
-模块 5：动作序列提取与去抖动
-功能：从一整段视频的动作分类结果中，合并连续的相同动作，过滤太短暂的噪声（例如只持续 <5 帧的动作忽略），输出一个动作序列。
-关键类：ActionSequenceExtractor.kt。
-AI 提示词：
+首次打开 App 时，会请求以下权限：
+- **相机权限**: 用于录制视频
+- **录音权限**: 视频录制需要音频
 
-“实现一个函数 extractSequence(actionList: List<String>, minFrames: Int = 5): List<String>，将连续相同动作合并，并丢弃持续时间不足 minFrames 的孤立即时动作。返回去抖后的动作列表。”
+点击"允许"授予权限。
 
-模块 6：无障碍服务控制其他 App
-功能：根据提取的动作序列，在用户点击“开始控制”后，依序执行对应的 UI 操作（例如上滑、点击屏幕中央）。
-关键类：ControlAccessibilityService.kt（继承 AccessibilityService）、ActionDispatcher.kt。
-AI 提示词：
+### 第二步：开启无障碍服务
 
-“编写一个无障碍服务 ControlAccessibilityService，在 onStartCommand 中接收一个动作名称字符串，然后执行：
+这是控制其他 App 的必要步骤：
 
-‘swipe_up’: 模拟从 (width/2, height*2/3) 到 (width/2, height/3) 的滑动
+1. 点击 App 右上角的 **设置** 按钮
+2. 系统跳转到无障碍设置页面
+3. 找到 **"Action2Control"** 并点击进入
+4. 开启 **"使用 Action2Control"** 开关
+5. 在弹出的确认对话框中点击 **"允许"**
 
-‘swipe_down’: 相反方向
+> **注意**: 无障碍服务用于模拟手势操作，不会收集任何用户数据。
 
-‘like’: 在屏幕中央执行一个点击
+### 第三步：录制动作
 
-‘back’: 执行全局返回
-需要动态获取屏幕尺寸，并使用 dispatchGesture 方法。在 AndroidManifest 中声明服务，并提示用户开启无障碍权限。”
+1. 返回 App 主界面
+2. 点击 **"录制动作"** 按钮
+3. 进入相机界面，点击底部 **红色圆形按钮** 开始录制
+4. 对着摄像头做你想要的动作（建议每个动作持续 1-2 秒）
+5. 再次点击按钮停止录制
+6. 自动返回主界面
 
-模块 7：主流程串联
-功能：将以上模块串联为用户可操作的完整流程：
+### 第四步：分析动作
 
-录制视频并保存；
+1. 确保已录制视频（"尚未录制视频" 提示消失）
+2. 点击 **"分析动作"** 按钮
+3. 等待分析完成（进度显示在按钮上）
+   - 加载分类模型 → 初始化姿态估计 → 提取视频帧 → 姿态估计 → 动作分类
+4. 分析完成后，动作序列将显示在屏幕中央的卡片中
 
-点击“分析动作”按钮，调用 PoseEstimator 和 ActionClassifier 处理视频；
+### 第五步：执行控制
 
-显示提取的动作序列；
+1. 确保无障碍服务已开启（主界面无 "无障碍服务未开启" 红色提示）
+2. 点击 **"开始控制"** 按钮（可选：直接跳转到抖音/快手）
+3. 打开目标 App（如抖音）
+4. 返回 Action2Control，点击 **"执行动作"** 按钮
+5. App 将依次执行识别到的动作序列
 
-用户点击“回放动作控制抖音/快手”，无障碍服务依次执行动作。
+## 训练自己的动作模型
 
-AI 提示词：
+当前使用占位模型进行演示。要获得准确的动作识别，需要训练自己的模型。
 
-“在 MainActivity 中添加以下逻辑：
+### 步骤 1：准备数据集
 
-录制按钮启动 CameraScreen，录制完成后返回 MainActivity。
+按以下目录结构组织视频数据：
 
-分析按钮读取最新视频，调用 PoseEstimator 和 ActionClassifier，最后将去抖后的动作序列显示在 Text 中。
+```
+data/
+├── swipe_up/      # 上滑动作视频（建议 20-50 个）
+│   ├── video_001.mp4
+│   └── video_002.mp4
+├── swipe_down/    # 下滑动作视频
+├── like/          # 点赞动作视频
+├── back/          # 返回动作视频
+└── unknown/       # 未知/过渡动作视频
+```
 
-执行按钮启动 ControlAccessibilityService（如果未开启则引导开启），并将动作序列通过 Intent 发送给服务依次执行。”
+### 步骤 2：安装依赖
 
-四、额外需要的文件（AI 需一并生成）
-AndroidManifest.xml：声明相机、录制音频权限，无障碍服务，MediaProjection 权限（可选）。
+```bash
+pip install tensorflow mediapipe opencv-python numpy scikit-learn
+```
 
-build.gradle (Module)：完整依赖列表。
+### 步骤 3：运行训练
 
-assets/action_model.tflite：占位模型文件（如果没有真实模型，可以生成一个随机权重模型）。
+```bash
+python train_model.py --data_dir ./data --output action_model.tflite --epochs 50 --batch_size 16
+```
 
-train_model.py：用于用户自己训练真实动作模型的脚本（使用 MediaPipe Holistic 提取关键点数据训练）。
+训练完成后，会生成：
+- `action_model.tflite` - TFLite 模型文件
+- `action_model_labels.txt` - 标签映射文件
 
-README.md：如何构建、开启无障碍权限、如何替换自己的模型的说明。
+### 步骤 4：替换模型
 
-五、给 AI 的最终系统级提示（复制到对话中）
-你是一个资深安卓架构师。请按照以下详细计划生成一个完整的 Android 项目源代码，用于实现“通过身体动作控制手机 App”。项目名：Action2Control。
-要求：
+将生成的 `action_model.tflite` 复制到 Android 项目：
 
-使用 Kotlin + Jetpack Compose。
+```bash
+cp action_model.tflite app/src/main/assets/
+```
 
-所有类文件单独列出，包括包名、import、注释。
+重新构建 App 即可使用训练好的模型。
 
-生成的代码可以直接复制到 Android Studio 中编译运行（虽然模型是占位的，但框架完整）。
+## 项目结构
 
-重点处理权限请求、无障碍服务引导、MediaPipe 初始化失败的回退。
+```
+app/src/main/
+├── java/com/action2control/
+│   ├── MainActivity.kt                  # 应用入口和状态管理
+│   ├── ui/
+│   │   ├── MainScreen.kt                # 主界面 Composable
+│   │   └── CameraScreen.kt              # 相机界面 Composable
+│   ├── camera/
+│   │   └── VideoRecorder.kt             # CameraX 视频录制
+│   ├── ml/
+│   │   ├── PoseEstimator.kt             # MediaPipe 姿态估计
+│   │   ├── ActionClassifier.kt          # TFLite 动作分类
+│   │   ├── FrameExtractor.kt            # 视频帧提取
+│   │   └── ActionSequenceExtractor.kt   # 动作序列去抖
+│   ├── service/
+│   │   ├── ControlAccessibilityService.kt  # 无障碍服务
+│   │   └── ActionDispatcher.kt          # 动作到手势映射
+│   └── utils/
+│       └── PermissionHelper.kt          # 权限管理工具
+├── res/
+│   └── xml/
+│       └── accessibility_service_config.xml  # 无障碍服务配置
+└── assets/
+    ├── action_model.tflite              # TFLite 动作分类模型
+    └── pose_landmarker.task             # MediaPipe 姿态模型
 
-提供伪造的 TFLite 模型生成脚本（Python），确保 App 不会因为缺少模型而崩溃。
+train_model.py                           # 模型训练脚本
+create_placeholder_model.py              # 占位模型生成脚本
+```
 
-输出格式：按文件分类，每个文件代码块开头注明路径（如 app/src/main/java/com/action2control/MainActivity.kt）。
-请直接生成代码，不要省略关键部分。
+## 已知局限
 
-六、测试与验证步骤（用户拿到代码后操作）
-在 Android Studio 中打开项目，Sync Gradle 下载依赖。
+1. **模型精度**: 占位模型仅用于演示，实际识别需要训练自己的模型
+2. **性能**: 视频分析在 CPU 上运行，长视频可能需要较长时间
+3. **设备兼容性**: 部分 ROM 可能对无障碍服务有额外限制
+4. **实时性**: 当前为录制后分析模式，不支持实时流处理
+5. **动作种类**: 仅支持 4 种基本动作，可扩展更多
 
-连接一台 Android 10+ 的真机（模拟器相机可能有问题）。
+## 后续优化方向
 
-运行 App → 授予相机权限。
+- [ ] 实时流处理（边录制边识别）
+- [ ] 更多动作支持（如双手操作、复杂手势）
+- [ ] 模型量化和加速（GPU/NNAPI）
+- [ ] 自定义动作录制和训练界面
+- [ ] 多目标 App 支持（可配置包名）
+- [ ] 动作序列编辑和保存
 
-录制一段自己做的简单动作（例如先举手 2 秒，再向下挥手）。
+## 许可证
 
-点击“分析动作” → 因为模型是随机的，可能输出随机标签，但能看到流程跑通。
+本项目仅供学习和研究使用。
 
-去系统设置中开启“Action2Control”的无障碍服务。
+## 贡献
 
-回到 App，点击“执行动作” → 观察手机是否执行了滑动/点击动作。
+欢迎提交 Issue 和 Pull Request。
 
-七、已知局限与后续优化方向（告知 AI 可以在注释中提及）
-真实动作识别需要训练自己的 TFLite 模型（提供 Python 脚本）。
+## 联系方式
 
-性能优化：可以使用 MediaPipe 的实时流处理代替逐帧分析。
-
-无障碍手势需要 Android 7.0+，且部分 ROM 可能需要额外配置。
-
-控制抖音/快手时，需要提前打开目标 App，因为无障碍服务只是模拟手势，不负责启动 App。
-
-这份计划可以直接作为一个 Prompt 复制给 Claude 3.7 / GPT-4o / DeepSeek 等支持长上下文的 AI。它会按照上述模块生成完整代码。如果你希望我针对某个模块（比如 CameraX 录制 + MediaPipe 实时分析）给出更紧凑的示例，也可以告诉我，我可以帮你先写一个核心片段。
+如有问题或建议，请提交 Issue。
