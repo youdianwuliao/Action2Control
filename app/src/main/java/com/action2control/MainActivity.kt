@@ -165,6 +165,7 @@ suspend fun analyzeVideo(
     val frameExtractor = FrameExtractor(context)
     val poseEstimator = PoseEstimator(context)
     val actionClassifier = ActionClassifier(context)
+    var frames: List<android.graphics.Bitmap> = emptyList()
 
     try {
         // 步骤 1: 加载动作分类模型
@@ -184,7 +185,7 @@ suspend fun analyzeVideo(
 
         // 步骤 3: 提取视频帧
         onProgress(0, 100, "提取视频帧")
-        val frames = frameExtractor.extractFrames(videoPath)
+        frames = frameExtractor.extractFrames(videoPath)
         if (frames.isEmpty()) {
             Log.e("analyzeVideo", "No frames extracted from video")
             return@withContext emptyList<String>()

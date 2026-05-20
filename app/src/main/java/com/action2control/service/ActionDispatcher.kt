@@ -1,13 +1,15 @@
 package com.action2control.service
 
-import android.graphics.Path
+import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.accessibilityservice.GestureDescription.StrokeDescription
+import android.graphics.Path
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
-import com.action2control.service.ControlAccessibilityService.Companion.TAG
 
 class ActionDispatcher(
-    private val service: ControlAccessibilityService,
+    private val service: AccessibilityService,
     private val screenWidth: Int,
     private val screenHeight: Int
 ) {
@@ -50,7 +52,7 @@ class ActionDispatcher(
 
     private fun executeBack() {
         Log.d(tag, "Executing global back action")
-        service.performGlobalAction(android.accessibilityservice.AccessibilityService.GLOBAL_ACTION_BACK)
+        service.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
     }
 
     fun executeSwipe(fromX: Float, fromY: Float, toX: Float, toY: Float, duration: Long = 300L) {
@@ -64,15 +66,15 @@ class ActionDispatcher(
             .addStroke(stroke)
             .build()
 
-        service.dispatchGesture(gesture, object : android.accessibilityservice.GestureResultCallback() {
+        val callback = object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription) {
-                Log.i(tag, "Swipe gesture completed: ($fromX, $fromY) -> ($toX, $toY)")
+                Log.i(tag, "Swipe gesture completed")
             }
-
             override fun onCancelled(gestureDescription: GestureDescription) {
-                Log.e(tag, "Swipe gesture cancelled: ($fromX, $fromY) -> ($toX, $toY)")
+                Log.e(tag, "Swipe gesture cancelled")
             }
-        }, null)
+        }
+        service.dispatchGesture(gesture, callback, Handler(Looper.getMainLooper()))
     }
 
     fun executeTap(x: Float, y: Float) {
@@ -86,14 +88,14 @@ class ActionDispatcher(
             .addStroke(stroke)
             .build()
 
-        service.dispatchGesture(gesture, object : android.accessibilityservice.GestureResultCallback() {
+        val callback = object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription) {
-                Log.i(tag, "Tap gesture completed: ($x, $y)")
+                Log.i(tag, "Tap gesture completed")
             }
-
             override fun onCancelled(gestureDescription: GestureDescription) {
-                Log.e(tag, "Tap gesture cancelled: ($x, $y)")
+                Log.e(tag, "Tap gesture cancelled")
             }
-        }, null)
+        }
+        service.dispatchGesture(gesture, callback, Handler(Looper.getMainLooper()))
     }
 }

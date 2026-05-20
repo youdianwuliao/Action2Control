@@ -15,7 +15,7 @@ import kotlinx.coroutines.withContext
  * 姿态估计器
  * 使用 MediaPipe Pose Landmarker 对视频帧进行逐帧姿态估计
  */
-class PoseEstimator(context: Context) {
+class PoseEstimator(private val context: Context) {
 
     companion object {
         private const val TAG = "PoseEstimator"

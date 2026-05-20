@@ -1,0 +1,32 @@
+R_DEF: Internal format may change without notice
+local
+color black
+color purple_200
+color purple_500
+color purple_700
+color teal_200
+color teal_700
+color white
+mipmap ic_launcher
+mipmap ic_launcher_round
+string accessibility_service_not_enabled
+string accessibility_service_required
+string action_sequence
+string analyze_action
+string analyzing
+string app_name
+string audio_permission_required
+string camera_permission_required
+string execute_action
+string go_to_settings
+string grant_permission
+string no_video_recorded
+string record_action
+string recording_saved
+string start_control
+string start_recording
+string stop_recording
+style Theme.Action2Control
+xml accessibility_service_config
+xml backup_rules
+xml data_extraction_rules

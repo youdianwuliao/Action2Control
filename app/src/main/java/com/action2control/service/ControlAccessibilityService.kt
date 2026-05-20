@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.content.Intent
 import android.util.Log
 import android.view.WindowManager
+import android.view.accessibility.AccessibilityEvent
 
 class ControlAccessibilityService : AccessibilityService() {
 
@@ -21,6 +22,14 @@ class ControlAccessibilityService : AccessibilityService() {
     }
 
     private var actionDispatcher: ActionDispatcher? = null
+
+    override fun onAccessibilityEvent(event: AccessibilityEvent?) {
+        // 不需要处理无障碍事件，仅用于手势执行
+    }
+
+    override fun onInterrupt() {
+        Log.w(TAG, "Service interrupted")
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -89,10 +98,6 @@ class ControlAccessibilityService : AccessibilityService() {
                 handler.postDelayed(this, 500L)
             }
         }.also { handler.post(it) }
-    }
-
-    override fun onInterrupt() {
-        Log.w(TAG, "Service interrupted")
     }
 
     override fun onUnbind(intent: Intent?): Boolean {

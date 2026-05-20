@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="white">#FFFFFFFF</color>
+    <string name="accessibility_service_not_enabled">无障碍服务未开启</string>
+    <string name="accessibility_service_required">需要开启无障碍服务</string>
+    <string name="action_sequence">动作序列</string>
+    <string name="analyze_action">分析动作</string>
+    <string name="analyzing">分析中...</string>
+    <string name="app_name">Action2Control</string>
+    <string name="audio_permission_required">需要录音权限</string>
+    <string name="camera_permission_required">需要相机权限</string>
+    <string name="execute_action">执行动作</string>
+    <string name="go_to_settings">前往设置</string>
+    <string name="grant_permission">授予权限</string>
+    <string name="no_video_recorded">尚未录制视频</string>
+    <string name="record_action">录制动作</string>
+    <string name="recording_saved">视频已保存</string>
+    <string name="start_control">开始控制</string>
+    <string name="start_recording">开始录制</string>
+    <string name="stop_recording">停止录制</string>
+    <style name="Theme.Action2Control" parent="android:Theme.Material.Light.NoActionBar"/>
+</resources>

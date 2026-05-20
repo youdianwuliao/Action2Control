@@ -184,14 +184,9 @@ class VideoRecorder(
     private fun getErrorMessage(errorCode: Int): String {
         return when (errorCode) {
             VideoRecordEvent.Finalize.ERROR_UNKNOWN -> "未知错误"
-            VideoRecordEvent.Finalize.ERROR_FILE_IO -> "文件读写错误"
-            VideoRecordEvent.Finalize.ERROR_RECORDER -> "录制器错误"
             VideoRecordEvent.Finalize.ERROR_NO_VALID_DATA -> "无有效数据"
             VideoRecordEvent.Finalize.ERROR_ENCODING_FAILED -> "编码失败"
-            VideoRecordEvent.Finalize.ERROR_FRAME_RATE_NOT_SUPPORTED -> "帧率不支持"
-            VideoRecordEvent.Finalize.ERROR_RESOLUTION_NOT_SUPPORTED -> "分辨率不支持"
-            VideoRecordEvent.Finalize.ERROR_RECORDER_IN_TOO_DEEP_ERROR_STATE -> "录制器严重错误"
-            else -> "未知错误 ($errorCode)"
+            else -> "录制错误 ($errorCode)"
         }
     }
 }
