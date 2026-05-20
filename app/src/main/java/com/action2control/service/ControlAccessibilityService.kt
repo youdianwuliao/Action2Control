@@ -23,6 +23,13 @@ class ControlAccessibilityService : AccessibilityService() {
 
     private var actionDispatcher: ActionDispatcher? = null
 
+    /**
+     * 执行单个动作（供外部调用）
+     */
+    fun executeSingleAction(action: String) {
+        actionDispatcher?.dispatchAction(action)
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         // 不需要处理无障碍事件，仅用于手势执行
     }
