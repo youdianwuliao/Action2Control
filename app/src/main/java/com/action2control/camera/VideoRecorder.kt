@@ -26,6 +26,7 @@ class ScreenRecorder(
     private var isRecording = false
     private var isPaused = false
     private var currentVideoFile: File? = null
+    private var mediaProjection: android.media.projection.MediaProjection? = null
 
     companion object {
         private const val TAG = "ScreenRecorder"
@@ -43,9 +44,14 @@ class ScreenRecorder(
      * 开始录制屏幕
      */
     fun startRecording(resultCode: Int, data: android.content.Intent): Boolean {
-        if (isRecording) return false
+        if (isRecording) {
+            Log.w(TAG, "Already recording, ignoring start request")
+            return false
+        }
 
         return try {
+            Log.d(TAG, "Starting screen recording")
+
             // 创建输出文件
             val outputDir = context.getExternalFilesDir(null) ?: run {
                 onRecordingError("无法获取存储目录")
@@ -57,9 +63,18 @@ class ScreenRecorder(
             }
 
             currentVideoFile = File(outputDir, "screen_${System.currentTimeMillis()}.mp4")
+            Log.d(TAG, "Output file: ${currentVideoFile!!.absolutePath}")
 
             // 获取屏幕尺寸
             val displayMetrics = getDisplayMetrics()
+            Log.d(TAG, "Screen size: ${displayMetrics.widthPixels}x${displayMetrics.heightPixels}, density: ${displayMetrics.densityDpi}")
+
+            // 获取 MediaProjection
+            mediaProjection = getMediaProjection(resultCode, data)
+            if (mediaProjection == null) {
+                onRecordingError("无法获取 MediaProjection")
+                return false
+            }
 
             // 配置 MediaRecorder
             mediaRecorder = createMediaRecorder(
@@ -69,14 +84,15 @@ class ScreenRecorder(
             )
 
             // 创建 VirtualDisplay
-            createVirtualDisplay(resultCode, data, displayMetrics)
+            createVirtualDisplay(displayMetrics)
 
+            // 开始录制
             mediaRecorder?.start()
 
             isRecording = true
             isPaused = false
 
-            Log.d(TAG, "Screen recording started: ${currentVideoFile!!.absolutePath}")
+            Log.d(TAG, "Screen recording started successfully")
             true
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start recording", e)
@@ -90,22 +106,33 @@ class ScreenRecorder(
      * 停止录制
      */
     fun stopRecording() {
-        if (!isRecording) return
+        if (!isRecording) {
+            Log.w(TAG, "Not recording, ignoring stop request")
+            return
+        }
+
+        Log.d(TAG, "Stopping recording")
 
         try {
+            // 如果处于暂停状态，先恢复再停止
             if (isPaused) {
-                // 如果处于暂停状态，先恢复再停止
+                Log.d(TAG, "Resuming before stop")
                 mediaRecorder?.resume()
                 isPaused = false
             }
 
+            // 停止录制
             mediaRecorder?.stop()
-            Log.d(TAG, "Screen recording stopped")
+            Log.d(TAG, "MediaRecorder stopped")
 
             val path = currentVideoFile?.absolutePath ?: ""
+            Log.d(TAG, "Video saved to: $path")
+
+            // 标记状态
             isRecording = false
             isPaused = false
 
+            // 回调通知完成
             onRecordingComplete(path)
         } catch (e: Exception) {
             Log.e(TAG, "Error stopping recording", e)
@@ -119,7 +146,14 @@ class ScreenRecorder(
      * 暂停录制
      */
     fun pauseRecording() {
-        if (!isRecording || isPaused) return
+        if (!isRecording) {
+            Log.w(TAG, "Not recording, cannot pause")
+            return
+        }
+        if (isPaused) {
+            Log.w(TAG, "Already paused")
+            return
+        }
 
         try {
             mediaRecorder?.pause()
@@ -135,7 +169,14 @@ class ScreenRecorder(
      * 恢复录制
      */
     fun resumeRecording() {
-        if (!isRecording || !isPaused) return
+        if (!isRecording) {
+            Log.w(TAG, "Not recording, cannot resume")
+            return
+        }
+        if (!isPaused) {
+            Log.w(TAG, "Not paused, cannot resume")
+            return
+        }
 
         try {
             mediaRecorder?.resume()
@@ -151,6 +192,7 @@ class ScreenRecorder(
      * 释放资源
      */
     fun release() {
+        Log.d(TAG, "Releasing resources")
         if (isRecording) {
             stopRecording()
         }
@@ -158,10 +200,18 @@ class ScreenRecorder(
     }
 
     private fun cleanup() {
+        Log.d(TAG, "Cleaning up")
         virtualDisplay?.release()
         virtualDisplay = null
 
-        mediaRecorder?.release()
+        mediaProjection?.stop()
+        mediaProjection = null
+
+        try {
+            mediaRecorder?.release()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error releasing MediaRecorder", e)
+        }
         mediaRecorder = null
 
         isRecording = false
@@ -201,23 +251,24 @@ class ScreenRecorder(
         }
     }
 
-    private fun createVirtualDisplay(
-        resultCode: Int,
-        data: android.content.Intent,
-        displayMetrics: DisplayMetrics
-    ) {
-        val mediaProjection = getMediaProjection(resultCode, data) ?: run {
-            onRecordingError("无法获取 MediaProjection")
+    private fun createVirtualDisplay(displayMetrics: DisplayMetrics) {
+        val projection = mediaProjection ?: run {
+            onRecordingError("MediaProjection 未初始化")
             return
         }
 
-        virtualDisplay = mediaProjection.createVirtualDisplay(
+        val surface = mediaRecorder?.surface ?: run {
+            onRecordingError("MediaRecorder surface 不可用")
+            return
+        }
+
+        virtualDisplay = projection.createVirtualDisplay(
             "ScreenRecorder",
             displayMetrics.widthPixels,
             displayMetrics.heightPixels,
             displayMetrics.densityDpi,
             DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC,
-            mediaRecorder?.surface,
+            surface,
             null,
             null
         )
@@ -232,7 +283,14 @@ class ScreenRecorder(
         val projectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE)
                 as? android.media.projection.MediaProjectionManager
 
-        return projectionManager?.getMediaProjection(resultCode, data)
+        return try {
+            val projection = projectionManager?.getMediaProjection(resultCode, data)
+            Log.d(TAG, "MediaProjection obtained: ${projection != null}")
+            projection
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to get MediaProjection", e)
+            null
+        }
     }
 
     private fun getDisplayMetrics(): DisplayMetrics {
