@@ -2,14 +2,14 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- 相机权限 -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    <!-- 录音权限 (视频录制需要) -->
+    <!-- 前台服务权限 (MediaProjection 需要) -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <!-- 录音权限 (录屏需要) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- 相机硬件特性声明 -->
-    <uses-feature
-        android:name="android.hardware.camera"
-        android:required="true" />
+    <!-- 存储权限 -->
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
 
     <application
         android:allowBackup="true"

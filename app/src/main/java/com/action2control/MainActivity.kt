@@ -1,11 +1,9 @@
 package com.action2control
 
-import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
@@ -16,7 +14,6 @@ import com.action2control.ml.PoseEstimator
 import com.action2control.service.ControlAccessibilityService
 import com.action2control.ui.CameraScreen
 import com.action2control.ui.MainScreen
-import com.action2control.utils.PermissionHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -24,7 +21,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * 主 Activity
- * 负责权限管理、页面导航和主流程控制
+ * 负责页面导航和主流程控制
  */
 class MainActivity : ComponentActivity() {
 
@@ -32,32 +29,18 @@ class MainActivity : ComponentActivity() {
         private const val TAG = "MainActivity"
     }
 
-    private lateinit var permissionLauncher: androidx.activity.result.ActivityResultLauncher<Array<String>>
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // 创建权限请求 Launcher
-        permissionLauncher = PermissionHelper.createPermissionLauncher(
-            context = this,
-            onGranted = { /* 权限已授予 */ },
-            onDenied = { /* 权限被拒绝 */ }
-        )
 
         setContent {
             MaterialTheme {
                 AppContent(
-                    onRequestPermissions = { PermissionHelper.requestPermissions(permissionLauncher) },
                     onOpenSettings = {
-                        startActivity(PermissionHelper.getAccessibilitySettingsIntent(this))
+                        val intent = android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                        startActivity(intent)
                     }
                 )
             }
-        }
-
-        // 启动时请求权限
-        if (!PermissionHelper.isCameraGranted(this) || !PermissionHelper.isAudioGranted(this)) {
-            PermissionHelper.requestPermissions(permissionLauncher)
         }
     }
 }
@@ -68,7 +51,6 @@ class MainActivity : ComponentActivity() {
  */
 @Composable
 fun AppContent(
-    onRequestPermissions: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     val context = LocalContext.current

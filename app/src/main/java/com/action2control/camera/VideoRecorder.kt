@@ -1,208 +1,248 @@
 package com.action2control.camera
 
 import android.content.Context
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
+import android.media.MediaRecorder
+import android.os.Build
+import android.util.DisplayMetrics
 import android.util.Log
-import androidx.camera.core.CameraSelector
-import androidx.camera.core.Preview
-import androidx.camera.core.UseCaseGroup
-import androidx.camera.core.resolutionselector.AspectRatioStrategy
-import androidx.camera.core.resolutionselector.ResolutionSelector
-import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.camera.video.FallbackStrategy
-import androidx.camera.video.FileOutputOptions
-import androidx.camera.video.Quality
-import androidx.camera.video.QualitySelector
-import androidx.camera.video.Recorder
-import androidx.camera.video.Recording
-import androidx.camera.video.VideoCapture
-import androidx.camera.video.VideoRecordEvent
-import androidx.core.content.ContextCompat
-import androidx.core.util.Consumer
-import androidx.lifecycle.LifecycleOwner
+import android.view.WindowManager
 import java.io.File
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 /**
- * 视频录制器
- * 基于 CameraX VideoCapture API 实现视频录制
+ * 屏幕录制器
+ * 基于 MediaProjection + MediaRecorder 实现屏幕录制
+ * 支持暂停/恢复功能
  */
-class VideoRecorder(
+class ScreenRecorder(
     private val context: Context,
-    private val lifecycleOwner: LifecycleOwner,
-    private val previewView: androidx.camera.view.PreviewView,
     private val onRecordingComplete: (videoPath: String) -> Unit,
     private val onRecordingError: (error: String) -> Unit
 ) {
 
-    private var cameraProvider: ProcessCameraProvider? = null
-    private var videoCapture: VideoCapture<Recorder>? = null
-    private var activeRecording: Recording? = null
+    private var mediaRecorder: MediaRecorder? = null
+    private var virtualDisplay: VirtualDisplay? = null
     private var isRecording = false
+    private var isPaused = false
+    private var currentVideoFile: File? = null
 
     companion object {
-        private const val TAG = "VideoRecorder"
+        private const val TAG = "ScreenRecorder"
+        private const val VIDEO_FRAME_RATE = 30
+        private const val VIDEO_BIT_RATE = 4_000_000 // 4Mbps
     }
 
     val isRecordingState: Boolean
         get() = isRecording
 
+    val isPausedState: Boolean
+        get() = isPaused
+
     /**
-     * 初始化 CameraProvider 并绑定用例
+     * 开始录制屏幕
      */
-    suspend fun initialize(): Boolean {
+    fun startRecording(resultCode: Int, data: android.content.Intent): Boolean {
+        if (isRecording) return false
+
         return try {
-            val provider = getCameraProvider(context)
-            cameraProvider = provider
-            bindCameraUseCases()
+            // 创建输出文件
+            val outputDir = context.getExternalFilesDir(null) ?: run {
+                onRecordingError("无法获取存储目录")
+                return false
+            }
+
+            if (!outputDir.exists()) {
+                outputDir.mkdirs()
+            }
+
+            currentVideoFile = File(outputDir, "screen_${System.currentTimeMillis()}.mp4")
+
+            // 获取屏幕尺寸
+            val displayMetrics = getDisplayMetrics()
+
+            // 配置 MediaRecorder
+            mediaRecorder = createMediaRecorder(
+                outputFile = currentVideoFile!!,
+                width = displayMetrics.widthPixels,
+                height = displayMetrics.heightPixels
+            )
+
+            // 创建 VirtualDisplay
+            createVirtualDisplay(resultCode, data, displayMetrics)
+
+            mediaRecorder?.start()
+
+            isRecording = true
+            isPaused = false
+
+            Log.d(TAG, "Screen recording started: ${currentVideoFile!!.absolutePath}")
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Camera initialization failed", e)
-            onRecordingError("相机初始化失败: ${e.message}")
+            Log.e(TAG, "Failed to start recording", e)
+            onRecordingError("录制启动失败: ${e.message}")
+            cleanup()
             false
         }
     }
 
     /**
-     * 开始录制视频
-     */
-    fun startRecording() {
-        if (isRecording) return
-
-        val capture = videoCapture ?: run {
-            onRecordingError("相机未初始化")
-            return
-        }
-
-        val outputDir = context.getExternalFilesDir(null) ?: run {
-            onRecordingError("无法获取存储目录")
-            return
-        }
-
-        if (!outputDir.exists()) {
-            outputDir.mkdirs()
-        }
-
-        val videoFile = File(outputDir, "video_${System.currentTimeMillis()}.mp4")
-        val outputOptions = FileOutputOptions.Builder(videoFile).build()
-
-        activeRecording = capture.output
-            .prepareRecording(context, outputOptions)
-            .withAudioEnabled()
-            .start(ContextCompat.getMainExecutor(context), recordingEventsListener)
-
-        isRecording = true
-        Log.d(TAG, "Recording started: ${videoFile.absolutePath}")
-    }
-
-    /**
-     * 停止录制视频
+     * 停止录制
      */
     fun stopRecording() {
         if (!isRecording) return
-        activeRecording?.stop()
-        activeRecording = null
-        isRecording = false
-        Log.d(TAG, "Recording stopped")
+
+        try {
+            if (isPaused) {
+                // 如果处于暂停状态，先恢复再停止
+                mediaRecorder?.resume()
+                isPaused = false
+            }
+
+            mediaRecorder?.stop()
+            Log.d(TAG, "Screen recording stopped")
+
+            val path = currentVideoFile?.absolutePath ?: ""
+            isRecording = false
+            isPaused = false
+
+            onRecordingComplete(path)
+        } catch (e: Exception) {
+            Log.e(TAG, "Error stopping recording", e)
+            onRecordingError("停止录制失败: ${e.message}")
+        } finally {
+            cleanup()
+        }
+    }
+
+    /**
+     * 暂停录制
+     */
+    fun pauseRecording() {
+        if (!isRecording || isPaused) return
+
+        try {
+            mediaRecorder?.pause()
+            isPaused = true
+            Log.d(TAG, "Recording paused")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to pause recording", e)
+            onRecordingError("暂停录制失败: ${e.message}")
+        }
+    }
+
+    /**
+     * 恢复录制
+     */
+    fun resumeRecording() {
+        if (!isRecording || !isPaused) return
+
+        try {
+            mediaRecorder?.resume()
+            isPaused = false
+            Log.d(TAG, "Recording resumed")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to resume recording", e)
+            onRecordingError("恢复录制失败: ${e.message}")
+        }
     }
 
     /**
      * 释放资源
      */
     fun release() {
-        stopRecording()
-        cameraProvider?.unbindAll()
-        cameraProvider = null
-        videoCapture = null
+        if (isRecording) {
+            stopRecording()
+        }
+        cleanup()
     }
 
-    private fun bindCameraUseCases() {
-        val provider = cameraProvider ?: return
-        val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+    private fun cleanup() {
+        virtualDisplay?.release()
+        virtualDisplay = null
 
-        val resolutionSelector = ResolutionSelector.Builder()
-            .setAspectRatioStrategy(AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY)
-            .build()
+        mediaRecorder?.release()
+        mediaRecorder = null
 
-        val preview = Preview.Builder()
-            .setResolutionSelector(resolutionSelector)
-            .build()
-            .apply {
-                setSurfaceProvider(previewView.surfaceProvider)
+        isRecording = false
+        isPaused = false
+    }
+
+    private fun createMediaRecorder(outputFile: File, width: Int, height: Int): MediaRecorder {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            // API 31+
+            MediaRecorder(context).apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setVideoSource(MediaRecorder.VideoSource.SURFACE)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setOutputFile(outputFile.absolutePath)
+                setVideoEncodingBitRate(VIDEO_BIT_RATE)
+                setVideoFrameRate(VIDEO_FRAME_RATE)
+                setVideoSize(width, height)
+                setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                prepare()
             }
+        } else {
+            // API 24-30
+            @Suppress("DEPRECATION")
+            MediaRecorder().apply {
+                setAudioSource(MediaRecorder.AudioSource.MIC)
+                setVideoSource(MediaRecorder.VideoSource.SURFACE)
+                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                setOutputFile(outputFile.absolutePath)
+                setVideoEncodingBitRate(VIDEO_BIT_RATE)
+                setVideoFrameRate(VIDEO_FRAME_RATE)
+                setVideoSize(width, height)
+                setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                prepare()
+            }
+        }
+    }
 
-        val qualitySelector = QualitySelector.fromOrderedList(
-            listOf(Quality.HD, Quality.SD),
-            FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)
+    private fun createVirtualDisplay(
+        resultCode: Int,
+        data: android.content.Intent,
+        displayMetrics: DisplayMetrics
+    ) {
+        val mediaProjection = getMediaProjection(resultCode, data) ?: run {
+            onRecordingError("无法获取 MediaProjection")
+            return
+        }
+
+        virtualDisplay = mediaProjection.createVirtualDisplay(
+            "ScreenRecorder",
+            displayMetrics.widthPixels,
+            displayMetrics.heightPixels,
+            displayMetrics.densityDpi,
+            DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC,
+            mediaRecorder?.surface,
+            null,
+            null
         )
 
-        val recorder = Recorder.Builder()
-            .setQualitySelector(qualitySelector)
-            .build()
-
-        videoCapture = VideoCapture.Builder(recorder).build()
-
-        val useCaseGroup = UseCaseGroup.Builder()
-            .addUseCase(preview)
-            .addUseCase(videoCapture!!)
-            .build()
-
-        try {
-            provider.unbindAll()
-            provider.bindToLifecycle(
-                lifecycleOwner,
-                cameraSelector,
-                useCaseGroup
-            )
-            Log.d(TAG, "Camera use cases bound successfully")
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to bind camera use cases", e)
-            onRecordingError("相机绑定失败: ${e.message}")
-        }
+        Log.d(TAG, "VirtualDisplay created")
     }
 
-    private val recordingEventsListener = Consumer<VideoRecordEvent> { event ->
-        when (event) {
-            is VideoRecordEvent.Start -> {
-                Log.d(TAG, "Recording started event")
-            }
-            is VideoRecordEvent.Finalize -> {
-                isRecording = false
-                if (event.hasError()) {
-                    Log.e(TAG, "Recording error: ${event.error}")
-                    onRecordingError("录制失败: ${getErrorMessage(event.error)}")
-                } else {
-                    val path = event.outputResults.outputUri.path ?: ""
-                    Log.d(TAG, "Recording finalized: $path")
-                    onRecordingComplete(path)
-                }
-            }
-            else -> {}
-        }
+    private fun getMediaProjection(
+        resultCode: Int,
+        data: android.content.Intent
+    ): android.media.projection.MediaProjection? {
+        val projectionManager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE)
+                as? android.media.projection.MediaProjectionManager
+
+        return projectionManager?.getMediaProjection(resultCode, data)
     }
 
-    private fun getErrorMessage(errorCode: Int): String {
-        return when (errorCode) {
-            VideoRecordEvent.Finalize.ERROR_UNKNOWN -> "未知错误"
-            VideoRecordEvent.Finalize.ERROR_NO_VALID_DATA -> "无有效数据"
-            VideoRecordEvent.Finalize.ERROR_ENCODING_FAILED -> "编码失败"
-            else -> "录制错误 ($errorCode)"
+    private fun getDisplayMetrics(): DisplayMetrics {
+        val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val display = context.display ?: windowManager.defaultDisplay
+            DisplayMetrics().also { display.getRealMetrics(it) }
+        } else {
+            @Suppress("DEPRECATION")
+            DisplayMetrics().also { windowManager.defaultDisplay.getRealMetrics(it) }
         }
-    }
-}
-
-/**
- * 获取 CameraProvider (suspend 版本)
- */
-private suspend fun getCameraProvider(context: Context): ProcessCameraProvider {
-    val future = ProcessCameraProvider.getInstance(context)
-    return suspendCoroutine { continuation ->
-        future.addListener({
-            try {
-                continuation.resume(future.get())
-            } catch (e: Exception) {
-                continuation.resumeWith(Result.failure(e))
-            }
-        }, ContextCompat.getMainExecutor(context))
     }
 }

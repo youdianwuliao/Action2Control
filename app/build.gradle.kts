@@ -64,6 +64,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
+    implementation("androidx.compose.material:material-icons-extended")
 
     // CameraX - 相机预览和录制
     implementation("androidx.camera:camera-core:1.3.1")
