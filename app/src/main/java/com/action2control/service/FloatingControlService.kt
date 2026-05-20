@@ -72,6 +72,7 @@ class FloatingControlService : Service() {
     private var isPaused = false
     private var mediaProjectionResultCode = 0
     private var mediaProjectionData: Intent? = null
+    private var lastVideoPath: String? = null
 
     private var executeJob: Job? = null
     private var currentAction: SavedAction? = null
@@ -160,17 +161,36 @@ class FloatingControlService : Service() {
 
         btnStop.setOnClickListener {
             if (isRecording) {
-                stopRecording { videoPath ->
-                    // 录制完成，分析视频
-                    tvStatus.text = "分析中..."
-                    btnStart.visibility = View.GONE
-                    btnPause.visibility = View.GONE
-                    btnStop.visibility = View.GONE
+                tvStatus.text = "停止中..."
+                btnStart.isEnabled = false
+                btnPause.isEnabled = false
+                btnStop.isEnabled = false
 
-                    CoroutineScope(Dispatchers.Main).launch {
-                        analyzeAndSave(videoPath)
+                screenRecorder?.stopRecording()
+                isRecording = false
+                isPaused = false
+
+                // 等待一点时间让回调完成
+                Handler(Looper.getMainLooper()).postDelayed({
+                    val videoPath = lastVideoPath
+                    if (videoPath != null && videoPath.isNotEmpty()) {
+                        tvStatus.text = "分析中..."
+                        btnStart.visibility = View.GONE
+                        btnPause.visibility = View.GONE
+                        btnStop.visibility = View.GONE
+
+                        CoroutineScope(Dispatchers.Main).launch {
+                            analyzeAndSave(videoPath)
+                        }
+                    } else {
+                        tvStatus.text = "未获取到视频"
+                        Toast.makeText(this@FloatingControlService, "未获取到视频文件", Toast.LENGTH_SHORT).show()
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            removeFloatingWindow()
+                            stopSelf()
+                        }, 2000)
                     }
-                }
+                }, 500)
             }
         }
 
@@ -184,7 +204,10 @@ class FloatingControlService : Service() {
         // 初始化录屏器
         screenRecorder = ScreenRecorder(
             context = this,
-            onRecordingComplete = { _ -> },
+            onRecordingComplete = { videoPath ->
+                lastVideoPath = videoPath
+                Log.d(TAG, "Recording completed: $videoPath")
+            },
             onRecordingError = { error ->
                 Toast.makeText(this, error, Toast.LENGTH_SHORT).show()
             }
@@ -197,12 +220,6 @@ class FloatingControlService : Service() {
             isRecording = true
             isPaused = false
         }
-    }
-
-    private fun stopRecording(onComplete: (String) -> Unit) {
-        screenRecorder?.stopRecording()
-        isRecording = false
-        isPaused = false
     }
 
     private suspend fun analyzeAndSave(videoPath: String) {
