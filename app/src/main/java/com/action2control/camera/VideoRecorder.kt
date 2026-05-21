@@ -218,7 +218,14 @@ class ScreenRecorder(
         isPaused = false
     }
 
+    private fun hasMicrophone(): Boolean {
+        return context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_MICROPHONE)
+    }
+
     private fun createMediaRecorder(outputFile: File, width: Int, height: Int): MediaRecorder {
+        val hasMic = hasMicrophone()
+        Log.d(TAG, "Device has microphone: $hasMic")
+        
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // API 31+
             MediaRecorder(context).apply {
@@ -229,12 +236,13 @@ class ScreenRecorder(
                 setVideoFrameRate(VIDEO_FRAME_RATE)
                 setVideoSize(width, height)
                 setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                // 虚拟机可能没有麦克风，跳过音频录制
-                try {
+                
+                if (hasMic) {
                     setAudioSource(MediaRecorder.AudioSource.MIC)
                     setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                } catch (e: Exception) {
-                    Log.w(TAG, "音频录制不可用，仅录制视频: ${e.message}")
+                    Log.d(TAG, "Audio recording enabled")
+                } else {
+                    Log.d(TAG, "Audio recording disabled (no microphone)")
                 }
                 prepare()
             }
@@ -249,12 +257,13 @@ class ScreenRecorder(
                 setVideoFrameRate(VIDEO_FRAME_RATE)
                 setVideoSize(width, height)
                 setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                // 虚拟机可能没有麦克风，跳过音频录制
-                try {
+                
+                if (hasMic) {
                     setAudioSource(MediaRecorder.AudioSource.MIC)
                     setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                } catch (e: Exception) {
-                    Log.w(TAG, "音频录制不可用，仅录制视频: ${e.message}")
+                    Log.d(TAG, "Audio recording enabled")
+                } else {
+                    Log.d(TAG, "Audio recording disabled (no microphone)")
                 }
                 prepare()
             }
