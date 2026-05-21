@@ -98,19 +98,19 @@ class FloatingControlService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         actionRepository = ActionRepository(this)
         createNotificationChannel()
-
-        // Android 14+ 需要指定前台服务类型 (MediaProjection)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(1, buildNotification("悬浮窗控制服务运行中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
-        } else {
-            startForeground(1, buildNotification("悬浮窗控制服务运行中"))
-        }
         Log.d(TAG, "Service onCreate")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_RECORD
         Log.d(TAG, "onStartCommand mode=$mode")
+
+        // Android 14+ 必须在 onStartCommand 中调用 startForeground
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1, buildNotification("悬浮窗控制服务运行中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+        } else {
+            startForeground(1, buildNotification("悬浮窗控制服务运行中"))
+        }
 
         when (mode) {
             MODE_RECORD -> {

@@ -13,6 +13,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import com.action2control.data.ActionRepository
 import com.action2control.data.LoopMode
 import com.action2control.data.SavedAction
@@ -113,12 +114,12 @@ fun AppContent(
             return
         }
 
-        // 启动执行悬浮窗
+        // 启动执行悬浮窗（Android 14+ 需要使用 startForegroundService）
         val intent = Intent(context, FloatingControlService::class.java).apply {
             putExtra(FloatingControlService.EXTRA_MODE, FloatingControlService.MODE_EXECUTE)
             putExtra(FloatingControlService.EXTRA_ACTION_ID, action.id)
         }
-        context.startService(intent)
+        ContextCompat.startForegroundService(context, intent)
     }
 
     fun deleteAction(action: SavedAction) {
@@ -213,9 +214,9 @@ private fun startRecordFloatingWindow(
     FloatingControlService.pendingMediaProjectionResultCode = resultCode
     FloatingControlService.pendingMediaProjectionData = data
 
-    // 启动悬浮窗服务
+    // 启动悬浮窗服务（Android 14+ 需要使用 startForegroundService）
     val intent = Intent(context, FloatingControlService::class.java).apply {
         putExtra(FloatingControlService.EXTRA_MODE, FloatingControlService.MODE_RECORD)
     }
-    context.startService(intent)
+    ContextCompat.startForegroundService(context, intent)
 }
