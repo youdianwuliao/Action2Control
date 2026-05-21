@@ -99,9 +99,9 @@ class FloatingControlService : Service() {
         actionRepository = ActionRepository(this)
         createNotificationChannel()
 
-        // Android 14+ 需要指定前台服务类型
+        // Android 14+ 需要指定前台服务类型 (MediaProjection)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            startForeground(1, buildNotification("悬浮窗控制服务运行中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            startForeground(1, buildNotification("悬浮窗控制服务运行中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
         } else {
             startForeground(1, buildNotification("悬浮窗控制服务运行中"))
         }

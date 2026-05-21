@@ -54,7 +54,11 @@
             android:name=".service.FloatingControlService"
             android:enabled="true"
             android:exported="false"
-            android:foregroundServiceType="specialUse" />
+            android:foregroundServiceType="mediaProjection|specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="录制屏幕和控制悬浮窗" />
+        </service>
 
     </application>
 
