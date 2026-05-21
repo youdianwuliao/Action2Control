@@ -94,26 +94,31 @@ class FloatingControlService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        Log.d(TAG, "Service onCreate - initializing")
         instance = this
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         actionRepository = ActionRepository(this)
         createNotificationChannel()
-        Log.d(TAG, "Service onCreate")
+        Log.d(TAG, "Service onCreate completed")
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_RECORD
-        Log.d(TAG, "onStartCommand mode=$mode")
+        Log.d(TAG, "onStartCommand mode=$mode, intent extras: ${intent?.extras}")
 
         // Android 14+ 必须在 onStartCommand 中调用 startForeground
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            Log.d(TAG, "Starting foreground service with MEDIA_PROJECTION type")
             startForeground(1, buildNotification("悬浮窗控制服务运行中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
         } else {
+            Log.d(TAG, "Starting foreground service (pre-Android 14)")
             startForeground(1, buildNotification("悬浮窗控制服务运行中"))
         }
+        Log.d(TAG, "startForeground called successfully")
 
         when (mode) {
             MODE_RECORD -> {
+                Log.d(TAG, "Switching to record mode")
                 showRecordFloatingWindow()
             }
             MODE_EXECUTE -> {
@@ -158,7 +163,7 @@ class FloatingControlService : Service() {
         if (resultCode != Activity.RESULT_OK || data == null) {
             Log.e(TAG, "MediaProjection authorization not available")
             Toast.makeText(this, "屏幕录制授权数据丢失，请重新尝试", Toast.LENGTH_LONG).show()
-            stopSelf()
+            // 不清理全局变量，允许重试
             return
         }
 
@@ -223,12 +228,19 @@ class FloatingControlService : Service() {
         setupDragOnView(dragHandle)
 
         // 添加到窗口
-        val params = createLayoutParams()
-        windowManager?.addView(view, params)
-        Log.d(TAG, "Floating window added to WindowManager")
+        try {
+            val params = createLayoutParams()
+            windowManager?.addView(view, params)
+            Log.d(TAG, "Floating window added to WindowManager successfully")
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to add floating window", e)
+            Toast.makeText(this, "悬浮窗添加失败: ${e.message}", Toast.LENGTH_LONG).show()
+            return
+        }
 
         // 初始 UI 状态
         updateRecordUI()
+        Log.d(TAG, "showRecordFloatingWindow completed")
     }
 
     private fun startRecording(resultCode: Int, data: Intent) {
