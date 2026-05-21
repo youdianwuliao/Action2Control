@@ -7,19 +7,24 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.service.notification.NotificationListenerService
 import android.util.Log
+import android.view.ContextThemeWrapper
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
+import android.content.pm.ServiceInfo
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
+import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
@@ -68,6 +73,7 @@ class FloatingControlService : Service() {
 
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
+    private var contentLayout: LinearLayout? = null // 保存 contentLayout 引用
     private var actionRepository: ActionRepository? = null
 
     // 录制模式变量
@@ -92,7 +98,13 @@ class FloatingControlService : Service() {
         windowManager = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         actionRepository = ActionRepository(this)
         createNotificationChannel()
-        startForeground(1, buildNotification("悬浮窗控制服务运行中"))
+
+        // Android 14+ 需要指定前台服务类型
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(1, buildNotification("悬浮窗控制服务运行中"), ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+        } else {
+            startForeground(1, buildNotification("悬浮窗控制服务运行中"))
+        }
         Log.d(TAG, "Service onCreate")
     }
 
@@ -165,19 +177,20 @@ class FloatingControlService : Service() {
             }
         )
 
-        // 加载布局
-        val view = LayoutInflater.from(this).inflate(R.layout.floating_record, null)
+        // 使用 ContextThemeWrapper 确保按钮正确渲染
+        val themedContext = ContextThemeWrapper(this, R.style.Theme_Action2Control)
+        val view = LayoutInflater.from(themedContext).inflate(R.layout.floating_record, null)
         floatingView = view
 
         // 获取拖拽区域和内容区域
         val dragHandle = view.findViewById<View>(R.id.drag_handle)
-        val contentLayout = view.findViewById<View>(R.id.content_layout)
+        contentLayout = view.findViewById(R.id.content_layout)
 
         // 获取按钮引用（在 contentLayout 中）
-        val btnStart = contentLayout.findViewById<Button>(R.id.btn_start)
-        val btnPause = contentLayout.findViewById<Button>(R.id.btn_pause)
-        val btnStop = contentLayout.findViewById<Button>(R.id.btn_stop)
-        val tvStatus = contentLayout.findViewById<TextView>(R.id.tv_status)
+        val btnStart = contentLayout!!.findViewById<Button>(R.id.btn_start)
+        val btnPause = contentLayout!!.findViewById<Button>(R.id.btn_pause)
+        val btnStop = contentLayout!!.findViewById<Button>(R.id.btn_stop)
+        val tvStatus = contentLayout!!.findViewById<TextView>(R.id.tv_status)
 
         Log.d(TAG, "Views: dragHandle=${dragHandle != null}, contentLayout=${contentLayout != null}")
         Log.d(TAG, "Buttons: btnStart=${btnStart != null}, btnPause=${btnPause != null}, btnStop=${btnStop != null}")
@@ -227,13 +240,18 @@ class FloatingControlService : Service() {
             return
         }
 
-        val success = recorder.startRecording(resultCode, data)
-        if (success) {
-            recordState = RecordState.RECORDING
-            Log.d(TAG, "Recording started successfully")
-        } else {
-            Log.e(TAG, "startRecording returned false")
-            Toast.makeText(this, "录制启动失败", Toast.LENGTH_SHORT).show()
+        try {
+            val success = recorder.startRecording(resultCode, data)
+            if (success) {
+                recordState = RecordState.RECORDING
+                Log.d(TAG, "Recording started successfully")
+            } else {
+                Log.e(TAG, "startRecording returned false")
+                Toast.makeText(this, "录制启动失败", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "startRecording exception", e)
+            Toast.makeText(this, "录制异常: ${e.message}", Toast.LENGTH_LONG).show()
         }
         updateRecordUI()
     }
@@ -262,11 +280,12 @@ class FloatingControlService : Service() {
 
     private fun handleRecordingComplete(videoPath: String) {
         Log.d(TAG, "handleRecordingComplete: $videoPath")
-        val view = floatingView ?: return
-        val tvStatus = view.findViewById<TextView>(R.id.tv_status)
-        val btnStart = view.findViewById<Button>(R.id.btn_start)
-        val btnPause = view.findViewById<Button>(R.id.btn_pause)
-        val btnStop = view.findViewById<Button>(R.id.btn_stop)
+        val layout = contentLayout ?: return
+        
+        val tvStatus = layout.findViewById<TextView>(R.id.tv_status)
+        val btnStart = layout.findViewById<Button>(R.id.btn_start)
+        val btnPause = layout.findViewById<Button>(R.id.btn_pause)
+        val btnStop = layout.findViewById<Button>(R.id.btn_stop)
 
         tvStatus.text = "分析中..."
         btnStart.visibility = View.GONE
@@ -279,11 +298,11 @@ class FloatingControlService : Service() {
     }
 
     private fun updateRecordUI() {
-        val view = floatingView ?: return
-        val tvStatus = view.findViewById<TextView>(R.id.tv_status)
-        val btnStart = view.findViewById<Button>(R.id.btn_start)
-        val btnPause = view.findViewById<Button>(R.id.btn_pause)
-        val btnStop = view.findViewById<Button>(R.id.btn_stop)
+        val layout = contentLayout ?: return
+        val tvStatus = layout.findViewById<TextView>(R.id.tv_status)
+        val btnStart = layout.findViewById<Button>(R.id.btn_start)
+        val btnPause = layout.findViewById<Button>(R.id.btn_pause)
+        val btnStop = layout.findViewById<Button>(R.id.btn_stop)
 
         Log.d(TAG, "updateRecordUI: state=$recordState")
 
@@ -313,8 +332,8 @@ class FloatingControlService : Service() {
     }
 
     private suspend fun analyzeAndSave(videoPath: String) {
-        val view = floatingView ?: return
-        val tvStatus = view.findViewById<TextView>(R.id.tv_status)
+        val layout = contentLayout ?: return
+        val tvStatus = layout.findViewById<TextView>(R.id.tv_status)
 
         try {
             val actionSequence = analyzeVideo(this, videoPath) { current, total, phase ->
@@ -364,16 +383,17 @@ class FloatingControlService : Service() {
     // ==================== 执行模式悬浮窗 ====================
 
     private fun showExecuteFloatingWindow(action: SavedAction) {
-        val view = LayoutInflater.from(this).inflate(R.layout.floating_execute, null)
+        val themedContext = ContextThemeWrapper(this, R.style.Theme_Action2Control)
+        val view = LayoutInflater.from(themedContext).inflate(R.layout.floating_execute, null)
 
         val dragHandle = view.findViewById<View>(R.id.drag_handle)
-        val contentLayout = view.findViewById<View>(R.id.content_layout)
+        contentLayout = view.findViewById(R.id.content_layout)
 
-        val tvName = contentLayout.findViewById<TextView>(R.id.tv_action_name)
-        val tvLoop = contentLayout.findViewById<TextView>(R.id.tv_loop_info)
-        val tvStatus = contentLayout.findViewById<TextView>(R.id.tv_status)
-        val btnPause = contentLayout.findViewById<Button>(R.id.btn_pause)
-        val btnStop = contentLayout.findViewById<Button>(R.id.btn_stop)
+        val tvName = contentLayout!!.findViewById<TextView>(R.id.tv_action_name)
+        val tvLoop = contentLayout!!.findViewById<TextView>(R.id.tv_loop_info)
+        val tvStatus = contentLayout!!.findViewById<TextView>(R.id.tv_status)
+        val btnPause = contentLayout!!.findViewById<Button>(R.id.btn_pause)
+        val btnStop = contentLayout!!.findViewById<Button>(R.id.btn_stop)
 
         tvName.text = action.name
         tvLoop.text = when (action.loopMode) {
@@ -422,8 +442,8 @@ class FloatingControlService : Service() {
                 return@launch
             }
 
-            val view = floatingView ?: return@launch
-            val tvStatus = view.findViewById<TextView>(R.id.tv_status)
+            val layout = contentLayout ?: return@launch
+            val tvStatus = layout.findViewById<TextView>(R.id.tv_status)
 
             var loopIndex = 0
             val maxLoops = if (action.loopMode == LoopMode.INFINITE) Int.MAX_VALUE else action.loopCount
@@ -480,7 +500,7 @@ class FloatingControlService : Service() {
         var isDragging = false
         val dragThreshold = 10f
 
-        dragView.setOnTouchListener { v, event ->
+        dragView.setOnTouchListener { _, event ->
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
                     startX = event.rawX
@@ -505,53 +525,6 @@ class FloatingControlService : Service() {
                             params.y = initialY + dy.toInt()
                             windowManager?.updateViewLayout(floatingView!!, params)
                         }
-                        true
-                    } else {
-                        false
-                    }
-                }
-                MotionEvent.ACTION_UP -> {
-                    isDragging
-                }
-                else -> false
-            }
-        }
-    }
-
-    /**
-     * 设置拖拽功能（旧版本，用于执行模式）
-     */
-    private fun setupDrag(view: View) {
-        var startX = 0f
-        var startY = 0f
-        var initialX = 0
-        var initialY = 0
-        var isDragging = false
-        val dragThreshold = 10f
-
-        view.setOnTouchListener { v, event ->
-            when (event.actionMasked) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = event.rawX
-                    startY = event.rawY
-                    initialX = (v.layoutParams as WindowManager.LayoutParams).x
-                    initialY = (v.layoutParams as WindowManager.LayoutParams).y
-                    isDragging = false
-                    true
-                }
-                MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - startX
-                    val dy = event.rawY - startY
-                    
-                    if (!isDragging && (kotlin.math.abs(dx) > dragThreshold || kotlin.math.abs(dy) > dragThreshold)) {
-                        isDragging = true
-                    }
-                    
-                    if (isDragging) {
-                        val params = v.layoutParams as WindowManager.LayoutParams
-                        params.x = initialX + dx.toInt()
-                        params.y = initialY + dy.toInt()
-                        windowManager?.updateViewLayout(v, params)
                         true
                     } else {
                         false
@@ -591,6 +564,7 @@ class FloatingControlService : Service() {
             }
         }
         floatingView = null
+        contentLayout = null
     }
 
     private fun createNotificationChannel() {
