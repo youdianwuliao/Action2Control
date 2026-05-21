@@ -209,10 +209,13 @@ private fun startRecordFloatingWindow(
     resultCode: Int,
     data: Intent
 ) {
+    // 使用全局变量保存 MediaProjection 授权数据（解决 Intent 传递问题）
+    FloatingControlService.pendingMediaProjectionResultCode = resultCode
+    FloatingControlService.pendingMediaProjectionData = data
+
+    // 启动悬浮窗服务
     val intent = Intent(context, FloatingControlService::class.java).apply {
         putExtra(FloatingControlService.EXTRA_MODE, FloatingControlService.MODE_RECORD)
-        putExtra(FloatingControlService.EXTRA_RESULT_CODE, resultCode)
-        putExtra(FloatingControlService.EXTRA_DATA, data)
     }
     context.startService(intent)
 }

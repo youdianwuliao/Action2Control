@@ -1,5 +1,6 @@
 package com.action2control.service
 
+import android.app.Activity
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -15,6 +16,7 @@ import android.os.Looper
 import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.widget.Button
@@ -48,11 +50,15 @@ class FloatingControlService : Service() {
         const val TAG = "FloatingControlService"
         const val EXTRA_MODE = "mode"
         const val EXTRA_ACTION_ID = "action_id"
-        const val EXTRA_RESULT_CODE = "result_code"
-        const val EXTRA_DATA = "data"
 
         const val MODE_RECORD = "record"
         const val MODE_EXECUTE = "execute"
+
+        // 全局变量保存 MediaProjection 授权数据（解决 Intent 传递问题）
+        @Volatile
+        var pendingMediaProjectionResultCode = Activity.RESULT_CANCELED
+        @Volatile
+        var pendingMediaProjectionData: Intent? = null
 
         private var instance: FloatingControlService? = null
 
@@ -66,8 +72,6 @@ class FloatingControlService : Service() {
 
     // 录制模式变量
     private var screenRecorder: ScreenRecorder? = null
-    private var mediaProjectionResultCode = 0
-    private var mediaProjectionData: Intent? = null
     private var recordState = RecordState.IDLE
 
     // 执行模式变量
@@ -98,22 +102,6 @@ class FloatingControlService : Service() {
 
         when (mode) {
             MODE_RECORD -> {
-                mediaProjectionResultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
-                mediaProjectionData = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    intent?.getParcelableExtra(EXTRA_DATA, Intent::class.java)
-                } else {
-                    @Suppress("DEPRECATION")
-                    intent?.getParcelableExtra(EXTRA_DATA)
-                }
-
-                Log.d(TAG, "MediaProjection: resultCode=$mediaProjectionResultCode, data=${mediaProjectionData != null}")
-
-                if (mediaProjectionData == null) {
-                    Toast.makeText(this, "屏幕录制授权数据为空", Toast.LENGTH_LONG).show()
-                    stopSelf()
-                    return START_NOT_STICKY
-                }
-
                 showRecordFloatingWindow()
             }
             MODE_EXECUTE -> {
@@ -147,7 +135,20 @@ class FloatingControlService : Service() {
     // ==================== 录制模式悬浮窗 ====================
 
     private fun showRecordFloatingWindow() {
-        Log.d(TAG, "showRecordFloatingWindow")
+        Log.d(TAG, "showRecordFloatingWindow called")
+
+        // 从全局变量获取 MediaProjection 授权数据
+        val resultCode = pendingMediaProjectionResultCode
+        val data = pendingMediaProjectionData
+
+        Log.d(TAG, "MediaProjection: resultCode=$resultCode, data=${data != null}")
+
+        if (resultCode != Activity.RESULT_OK || data == null) {
+            Log.e(TAG, "MediaProjection authorization not available")
+            Toast.makeText(this, "屏幕录制授权数据丢失，请重新尝试", Toast.LENGTH_LONG).show()
+            stopSelf()
+            return
+        }
 
         // 初始化 ScreenRecorder
         screenRecorder = ScreenRecorder(
@@ -164,23 +165,28 @@ class FloatingControlService : Service() {
             }
         )
 
+        // 加载布局
         val view = LayoutInflater.from(this).inflate(R.layout.floating_record, null)
         floatingView = view
 
+        // 获取按钮引用
         val btnStart = view.findViewById<Button>(R.id.btn_start)
         val btnPause = view.findViewById<Button>(R.id.btn_pause)
         val btnStop = view.findViewById<Button>(R.id.btn_stop)
         val tvStatus = view.findViewById<TextView>(R.id.tv_status)
 
+        Log.d(TAG, "Buttons: btnStart=${btnStart != null}, btnPause=${btnPause != null}, btnStop=${btnStop != null}")
+
+        // 设置点击事件
         btnStart.setOnClickListener {
-            Log.d(TAG, "btnStart clicked, state=$recordState")
+            Log.d(TAG, "btnStart CLICKED, state=$recordState")
             if (recordState == RecordState.IDLE) {
-                startRecording()
+                startRecording(resultCode, data)
             }
         }
 
         btnPause.setOnClickListener {
-            Log.d(TAG, "btnPause clicked, state=$recordState")
+            Log.d(TAG, "btnPause CLICKED, state=$recordState")
             when (recordState) {
                 RecordState.RECORDING -> pauseRecording()
                 RecordState.PAUSED -> resumeRecording()
@@ -189,32 +195,34 @@ class FloatingControlService : Service() {
         }
 
         btnStop.setOnClickListener {
-            Log.d(TAG, "btnStop clicked, state=$recordState")
+            Log.d(TAG, "btnStop CLICKED, state=$recordState")
             if (recordState == RecordState.RECORDING || recordState == RecordState.PAUSED) {
                 stopRecording()
             }
         }
 
+        // 添加拖拽功能（不拦截按钮点击）
         setupDrag(view)
 
+        // 添加到窗口
         val params = createLayoutParams()
         windowManager?.addView(view, params)
+        Log.d(TAG, "Floating window added to WindowManager")
 
         // 初始 UI 状态
         updateRecordUI()
     }
 
-    private fun startRecording() {
+    private fun startRecording(resultCode: Int, data: Intent) {
         Log.d(TAG, "startRecording called")
         val recorder = screenRecorder
-        val data = mediaProjectionData
-        if (recorder == null || data == null) {
-            Log.e(TAG, "recorder or data is null")
+        if (recorder == null) {
+            Log.e(TAG, "screenRecorder is null")
             Toast.makeText(this, "录制器未初始化", Toast.LENGTH_SHORT).show()
             return
         }
 
-        val success = recorder.startRecording(mediaProjectionResultCode, data)
+        val success = recorder.startRecording(resultCode, data)
         if (success) {
             recordState = RecordState.RECORDING
             Log.d(TAG, "Recording started successfully")
@@ -272,6 +280,8 @@ class FloatingControlService : Service() {
         val btnPause = view.findViewById<Button>(R.id.btn_pause)
         val btnStop = view.findViewById<Button>(R.id.btn_stop)
 
+        Log.d(TAG, "updateRecordUI: state=$recordState")
+
         when (recordState) {
             RecordState.IDLE -> {
                 tvStatus.text = "准备录制"
@@ -279,8 +289,6 @@ class FloatingControlService : Service() {
                 btnPause.visibility = View.GONE
                 btnStop.visibility = View.GONE
                 btnStart.isEnabled = true
-                btnPause.isEnabled = true
-                btnStop.isEnabled = true
             }
             RecordState.RECORDING -> {
                 tvStatus.text = "录制中..."
@@ -288,9 +296,6 @@ class FloatingControlService : Service() {
                 btnPause.visibility = View.VISIBLE
                 btnStop.visibility = View.VISIBLE
                 btnPause.text = "暂停"
-                btnStart.isEnabled = false
-                btnPause.isEnabled = true
-                btnStop.isEnabled = true
             }
             RecordState.PAUSED -> {
                 tvStatus.text = "已暂停"
@@ -298,9 +303,6 @@ class FloatingControlService : Service() {
                 btnPause.visibility = View.VISIBLE
                 btnStop.visibility = View.VISIBLE
                 btnPause.text = "继续"
-                btnStart.isEnabled = false
-                btnPause.isEnabled = true
-                btnStop.isEnabled = true
             }
         }
     }
@@ -457,41 +459,47 @@ class FloatingControlService : Service() {
 
     // ==================== 通用方法 ====================
 
+    /**
+     * 设置拖拽功能
+     * 注意：不能拦截按钮点击事件
+     */
     private fun setupDrag(view: View) {
+        var startX = 0f
+        var startY = 0f
         var initialX = 0
         var initialY = 0
-        var initialTouchX = 0f
-        var initialTouchY = 0f
         var isDragging = false
+        val dragThreshold = 10f // 拖拽阈值
 
         view.setOnTouchListener { v, event ->
-            when (event.action) {
-                android.view.MotionEvent.ACTION_DOWN -> {
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.rawX
+                    startY = event.rawY
                     initialX = (v.layoutParams as WindowManager.LayoutParams).x
                     initialY = (v.layoutParams as WindowManager.LayoutParams).y
-                    initialTouchX = event.rawX
-                    initialTouchY = event.rawY
                     isDragging = false
-                    false // 返回 false，让子 view 可以接收点击事件
+                    false // 不拦截，传递给子 view
                 }
-                android.view.MotionEvent.ACTION_MOVE -> {
-                    val dx = event.rawX - initialTouchX
-                    val dy = event.rawY - initialTouchY
-                    // 只有移动超过阈值才开始拖拽
-                    if (!isDragging && (kotlin.math.abs(dx) > 10 || kotlin.math.abs(dy) > 10)) {
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - startX
+                    val dy = event.rawY - startY
+                    
+                    if (!isDragging && (kotlin.math.abs(dx) > dragThreshold || kotlin.math.abs(dy) > dragThreshold)) {
                         isDragging = true
                     }
+                    
                     if (isDragging) {
                         val params = v.layoutParams as WindowManager.LayoutParams
                         params.x = initialX + dx.toInt()
                         params.y = initialY + dy.toInt()
                         windowManager?.updateViewLayout(v, params)
-                        true
+                        true // 拖拽时拦截事件
                     } else {
-                        false
+                        false // 不拦截，让子 view 处理
                     }
                 }
-                android.view.MotionEvent.ACTION_UP -> {
+                MotionEvent.ACTION_UP -> {
                     if (isDragging) {
                         true
                     } else {
