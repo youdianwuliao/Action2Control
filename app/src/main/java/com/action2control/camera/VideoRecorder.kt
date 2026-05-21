@@ -222,7 +222,6 @@ class ScreenRecorder(
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // API 31+
             MediaRecorder(context).apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
                 setVideoSource(MediaRecorder.VideoSource.SURFACE)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setOutputFile(outputFile.absolutePath)
@@ -230,14 +229,19 @@ class ScreenRecorder(
                 setVideoFrameRate(VIDEO_FRAME_RATE)
                 setVideoSize(width, height)
                 setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                // 虚拟机可能没有麦克风，跳过音频录制
+                try {
+                    setAudioSource(MediaRecorder.AudioSource.MIC)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                } catch (e: Exception) {
+                    Log.w(TAG, "音频录制不可用，仅录制视频: ${e.message}")
+                }
                 prepare()
             }
         } else {
             // API 24-30
             @Suppress("DEPRECATION")
             MediaRecorder().apply {
-                setAudioSource(MediaRecorder.AudioSource.MIC)
                 setVideoSource(MediaRecorder.VideoSource.SURFACE)
                 setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 setOutputFile(outputFile.absolutePath)
@@ -245,7 +249,13 @@ class ScreenRecorder(
                 setVideoFrameRate(VIDEO_FRAME_RATE)
                 setVideoSize(width, height)
                 setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                // 虚拟机可能没有麦克风，跳过音频录制
+                try {
+                    setAudioSource(MediaRecorder.AudioSource.MIC)
+                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                } catch (e: Exception) {
+                    Log.w(TAG, "音频录制不可用，仅录制视频: ${e.message}")
+                }
                 prepare()
             }
         }
