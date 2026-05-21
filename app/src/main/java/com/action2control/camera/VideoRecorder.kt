@@ -296,11 +296,23 @@ class ScreenRecorder(
     private fun getDisplayMetrics(): DisplayMetrics {
         val windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            val display = context.display ?: windowManager.defaultDisplay
-            DisplayMetrics().also { display.getRealMetrics(it) }
+            val display = windowManager.currentWindowMetrics?.bounds
+            if (display != null) {
+                DisplayMetrics().apply {
+                    widthPixels = display.width()
+                    heightPixels = display.height()
+                    densityDpi = context.resources.displayMetrics.densityDpi
+                }
+            } else {
+                // Fallback to default display metrics
+                context.resources.displayMetrics
+            }
         } else {
             @Suppress("DEPRECATION")
-            DisplayMetrics().also { windowManager.defaultDisplay.getRealMetrics(it) }
+            DisplayMetrics().also { windowManager.defaultDisplay?.getMetrics(it) ?: run {
+                // Fallback to resources
+                context.resources.displayMetrics
+            }}
         }
     }
 }
