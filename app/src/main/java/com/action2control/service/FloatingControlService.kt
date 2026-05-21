@@ -462,6 +462,7 @@ class FloatingControlService : Service() {
         var initialY = 0
         var initialTouchX = 0f
         var initialTouchY = 0f
+        var isDragging = false
 
         view.setOnTouchListener { v, event ->
             when (event.action) {
@@ -470,16 +471,32 @@ class FloatingControlService : Service() {
                     initialY = (v.layoutParams as WindowManager.LayoutParams).y
                     initialTouchX = event.rawX
                     initialTouchY = event.rawY
-                    true
+                    isDragging = false
+                    false // 返回 false，让子 view 可以接收点击事件
                 }
                 android.view.MotionEvent.ACTION_MOVE -> {
-                    val params = v.layoutParams as WindowManager.LayoutParams
-                    val dx = (event.rawX - initialTouchX).toInt()
-                    val dy = (event.rawY - initialTouchY).toInt()
-                    params.x = initialX + dx
-                    params.y = initialY + dy
-                    windowManager?.updateViewLayout(v, params)
-                    true
+                    val dx = event.rawX - initialTouchX
+                    val dy = event.rawY - initialTouchY
+                    // 只有移动超过阈值才开始拖拽
+                    if (!isDragging && (kotlin.math.abs(dx) > 10 || kotlin.math.abs(dy) > 10)) {
+                        isDragging = true
+                    }
+                    if (isDragging) {
+                        val params = v.layoutParams as WindowManager.LayoutParams
+                        params.x = initialX + dx.toInt()
+                        params.y = initialY + dy.toInt()
+                        windowManager?.updateViewLayout(v, params)
+                        true
+                    } else {
+                        false
+                    }
+                }
+                android.view.MotionEvent.ACTION_UP -> {
+                    if (isDragging) {
+                        true
+                    } else {
+                        false // 点击事件，传递给子 view
+                    }
                 }
                 else -> false
             }
