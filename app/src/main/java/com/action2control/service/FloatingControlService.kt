@@ -169,15 +169,20 @@ class FloatingControlService : Service() {
         val view = LayoutInflater.from(this).inflate(R.layout.floating_record, null)
         floatingView = view
 
-        // 获取按钮引用
-        val btnStart = view.findViewById<Button>(R.id.btn_start)
-        val btnPause = view.findViewById<Button>(R.id.btn_pause)
-        val btnStop = view.findViewById<Button>(R.id.btn_stop)
-        val tvStatus = view.findViewById<TextView>(R.id.tv_status)
+        // 获取拖拽区域和内容区域
+        val dragHandle = view.findViewById<View>(R.id.drag_handle)
+        val contentLayout = view.findViewById<View>(R.id.content_layout)
 
+        // 获取按钮引用（在 contentLayout 中）
+        val btnStart = contentLayout.findViewById<Button>(R.id.btn_start)
+        val btnPause = contentLayout.findViewById<Button>(R.id.btn_pause)
+        val btnStop = contentLayout.findViewById<Button>(R.id.btn_stop)
+        val tvStatus = contentLayout.findViewById<TextView>(R.id.tv_status)
+
+        Log.d(TAG, "Views: dragHandle=${dragHandle != null}, contentLayout=${contentLayout != null}")
         Log.d(TAG, "Buttons: btnStart=${btnStart != null}, btnPause=${btnPause != null}, btnStop=${btnStop != null}")
 
-        // 设置点击事件
+        // 设置按钮点击事件
         btnStart.setOnClickListener {
             Log.d(TAG, "btnStart CLICKED, state=$recordState")
             if (recordState == RecordState.IDLE) {
@@ -201,8 +206,8 @@ class FloatingControlService : Service() {
             }
         }
 
-        // 添加拖拽功能（不拦截按钮点击）
-        setupDrag(view)
+        // 只在拖拽区域处理拖拽，不影响按钮点击
+        setupDragOnView(dragHandle)
 
         // 添加到窗口
         val params = createLayoutParams()
@@ -361,11 +366,14 @@ class FloatingControlService : Service() {
     private fun showExecuteFloatingWindow(action: SavedAction) {
         val view = LayoutInflater.from(this).inflate(R.layout.floating_execute, null)
 
-        val tvName = view.findViewById<TextView>(R.id.tv_action_name)
-        val tvLoop = view.findViewById<TextView>(R.id.tv_loop_info)
-        val tvStatus = view.findViewById<TextView>(R.id.tv_status)
-        val btnPause = view.findViewById<Button>(R.id.btn_pause)
-        val btnStop = view.findViewById<Button>(R.id.btn_stop)
+        val dragHandle = view.findViewById<View>(R.id.drag_handle)
+        val contentLayout = view.findViewById<View>(R.id.content_layout)
+
+        val tvName = contentLayout.findViewById<TextView>(R.id.tv_action_name)
+        val tvLoop = contentLayout.findViewById<TextView>(R.id.tv_loop_info)
+        val tvStatus = contentLayout.findViewById<TextView>(R.id.tv_status)
+        val btnPause = contentLayout.findViewById<Button>(R.id.btn_pause)
+        val btnStop = contentLayout.findViewById<Button>(R.id.btn_stop)
 
         tvName.text = action.name
         tvLoop.text = when (action.loopMode) {
@@ -393,7 +401,8 @@ class FloatingControlService : Service() {
             stopSelf()
         }
 
-        setupDrag(view)
+        // 只在拖拽区域处理拖拽
+        setupDragOnView(dragHandle)
 
         val params = createLayoutParams()
         windowManager?.addView(view, params)
@@ -460,8 +469,57 @@ class FloatingControlService : Service() {
     // ==================== 通用方法 ====================
 
     /**
-     * 设置拖拽功能
-     * 注意：不能拦截按钮点击事件
+     * 在指定 view 上设置拖拽功能
+     * 只在拖拽区域处理拖拽，不影响其他区域的点击事件
+     */
+    private fun setupDragOnView(dragView: View) {
+        var startX = 0f
+        var startY = 0f
+        var initialX = 0
+        var initialY = 0
+        var isDragging = false
+        val dragThreshold = 10f
+
+        dragView.setOnTouchListener { v, event ->
+            when (event.actionMasked) {
+                MotionEvent.ACTION_DOWN -> {
+                    startX = event.rawX
+                    startY = event.rawY
+                    initialX = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.x ?: 0
+                    initialY = (floatingView?.layoutParams as? WindowManager.LayoutParams)?.y ?: 0
+                    isDragging = false
+                    true // 在拖拽区域拦截事件
+                }
+                MotionEvent.ACTION_MOVE -> {
+                    val dx = event.rawX - startX
+                    val dy = event.rawY - startY
+                    
+                    if (!isDragging && (kotlin.math.abs(dx) > dragThreshold || kotlin.math.abs(dy) > dragThreshold)) {
+                        isDragging = true
+                    }
+                    
+                    if (isDragging) {
+                        val params = floatingView?.layoutParams as? WindowManager.LayoutParams
+                        if (params != null) {
+                            params.x = initialX + dx.toInt()
+                            params.y = initialY + dy.toInt()
+                            windowManager?.updateViewLayout(floatingView!!, params)
+                        }
+                        true
+                    } else {
+                        false
+                    }
+                }
+                MotionEvent.ACTION_UP -> {
+                    isDragging
+                }
+                else -> false
+            }
+        }
+    }
+
+    /**
+     * 设置拖拽功能（旧版本，用于执行模式）
      */
     private fun setupDrag(view: View) {
         var startX = 0f
@@ -469,7 +527,7 @@ class FloatingControlService : Service() {
         var initialX = 0
         var initialY = 0
         var isDragging = false
-        val dragThreshold = 10f // 拖拽阈值
+        val dragThreshold = 10f
 
         view.setOnTouchListener { v, event ->
             when (event.actionMasked) {
@@ -479,7 +537,7 @@ class FloatingControlService : Service() {
                     initialX = (v.layoutParams as WindowManager.LayoutParams).x
                     initialY = (v.layoutParams as WindowManager.LayoutParams).y
                     isDragging = false
-                    false // 不拦截，传递给子 view
+                    true
                 }
                 MotionEvent.ACTION_MOVE -> {
                     val dx = event.rawX - startX
@@ -494,17 +552,13 @@ class FloatingControlService : Service() {
                         params.x = initialX + dx.toInt()
                         params.y = initialY + dy.toInt()
                         windowManager?.updateViewLayout(v, params)
-                        true // 拖拽时拦截事件
+                        true
                     } else {
-                        false // 不拦截，让子 view 处理
+                        false
                     }
                 }
                 MotionEvent.ACTION_UP -> {
-                    if (isDragging) {
-                        true
-                    } else {
-                        false // 点击事件，传递给子 view
-                    }
+                    isDragging
                 }
                 else -> false
             }
