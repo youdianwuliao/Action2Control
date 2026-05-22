@@ -264,17 +264,7 @@ class ScreenRecorder(
             return
         }
 
-        virtualDisplay = projection.createVirtualDisplay(
-            "ScreenRecorder",
-            displayMetrics.widthPixels,
-            displayMetrics.heightPixels,
-            displayMetrics.densityDpi,
-            DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC,
-            surface,
-            null,
-            null
-        )
-
+        virtualDisplay = MediaProjectionHelper.createVirtualDisplay(projection, displayMetrics, surface)
         Log.d(TAG, "VirtualDisplay created")
     }
 
