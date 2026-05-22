@@ -218,13 +218,8 @@ class ScreenRecorder(
         isPaused = false
     }
 
-    private fun hasMicrophone(): Boolean {
-        return context.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_MICROPHONE)
-    }
-
     private fun createMediaRecorder(outputFile: File, width: Int, height: Int): MediaRecorder {
-        val hasMic = hasMicrophone()
-        Log.d(TAG, "Device has microphone: $hasMic")
+        Log.d(TAG, "Creating MediaRecorder (video only, skipping audio)")
         
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             // API 31+
@@ -236,14 +231,8 @@ class ScreenRecorder(
                 setVideoFrameRate(VIDEO_FRAME_RATE)
                 setVideoSize(width, height)
                 setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                
-                if (hasMic) {
-                    setAudioSource(MediaRecorder.AudioSource.MIC)
-                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                    Log.d(TAG, "Audio recording enabled")
-                } else {
-                    Log.d(TAG, "Audio recording disabled (no microphone)")
-                }
+                // 跳过音频录制：屏幕动作分析不需要声音，且需要运行时权限
+                Log.d(TAG, "Audio recording disabled (not needed for screen action analysis)")
                 prepare()
             }
         } else {
@@ -257,14 +246,8 @@ class ScreenRecorder(
                 setVideoFrameRate(VIDEO_FRAME_RATE)
                 setVideoSize(width, height)
                 setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                
-                if (hasMic) {
-                    setAudioSource(MediaRecorder.AudioSource.MIC)
-                    setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                    Log.d(TAG, "Audio recording enabled")
-                } else {
-                    Log.d(TAG, "Audio recording disabled (no microphone)")
-                }
+                // 跳过音频录制
+                Log.d(TAG, "Audio recording disabled (not needed for screen action analysis)")
                 prepare()
             }
         }
