@@ -52,6 +52,10 @@ class PoseEstimator(private val context: Context) {
             isInitialized = true
             Log.i(TAG, "PoseLandmarker initialized successfully")
             true
+        } catch (e: UnsatisfiedLinkError) {
+            Log.e(TAG, "PoseLandmarker native library not available (this architecture may not be supported)", e)
+            isInitialized = false
+            false
         } catch (e: IllegalStateException) {
             Log.e(TAG, "PoseLandmarker initialization failed: model not found", e)
             isInitialized = false
