@@ -20,6 +20,9 @@ public class MediaProjectionHelper {
             DisplayMetrics displayMetrics,
             Surface surface) {
 
+        Log.d(TAG, "Creating VirtualDisplay: " + displayMetrics.widthPixels + "x" + displayMetrics.heightPixels);
+        Log.d(TAG, "Surface valid: " + surface.isValid());
+
         if (Build.VERSION.SDK_INT >= 34) {
             try {
                 // API 34+ method signature:
@@ -46,7 +49,7 @@ public class MediaProjectionHelper {
 
                 Log.d(TAG, "Found API 34 createVirtualDisplay method via reflection");
 
-                return (VirtualDisplay) method.invoke(
+                VirtualDisplay vd = (VirtualDisplay) method.invoke(
                         projection,
                         "ScreenRecorder",
                         displayMetrics.widthPixels,
@@ -57,12 +60,15 @@ public class MediaProjectionHelper {
                         callback,
                         new Handler(Looper.getMainLooper())
                 );
+                
+                Log.d(TAG, "VirtualDisplay created via reflection: " + (vd != null));
+                return vd;
             } catch (Exception e) {
                 Log.e(TAG, "Failed to create VirtualDisplay via reflection", e);
                 return null;
             }
         } else {
-            return projection.createVirtualDisplay(
+            VirtualDisplay vd = projection.createVirtualDisplay(
                     "ScreenRecorder",
                     displayMetrics.widthPixels,
                     displayMetrics.heightPixels,
@@ -72,6 +78,8 @@ public class MediaProjectionHelper {
                     null,
                     null
             );
+            Log.d(TAG, "VirtualDisplay created (API <34): " + (vd != null));
+            return vd;
         }
     }
 }

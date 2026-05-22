@@ -69,6 +69,11 @@ class ScreenRecorder(
             val displayMetrics = getDisplayMetrics()
             Log.d(TAG, "Screen size: ${displayMetrics.widthPixels}x${displayMetrics.heightPixels}, density: ${displayMetrics.densityDpi}")
 
+            // 确保尺寸为偶数（MediaRecorder 要求）
+            val videoWidth = displayMetrics.widthPixels and (1.inv())
+            val videoHeight = displayMetrics.heightPixels and (1.inv())
+            Log.d(TAG, "Video size (adjusted): ${videoWidth}x${videoHeight}")
+
             // 获取 MediaProjection
             mediaProjection = getMediaProjection(resultCode, data)
             if (mediaProjection == null) {
@@ -79,8 +84,8 @@ class ScreenRecorder(
             // 配置 MediaRecorder
             mediaRecorder = createMediaRecorder(
                 outputFile = currentVideoFile!!,
-                width = displayMetrics.widthPixels,
-                height = displayMetrics.heightPixels
+                width = videoWidth,
+                height = videoHeight
             )
 
             // 创建 VirtualDisplay
@@ -279,8 +284,17 @@ class ScreenRecorder(
             return
         }
 
+        Log.d(TAG, "Creating VirtualDisplay with surface: $surface")
+        Log.d(TAG, "MediaRecorder surface valid: ${surface.isValid}")
+
         virtualDisplay = MediaProjectionHelper.createVirtualDisplay(projection, displayMetrics, surface)
-        Log.d(TAG, "VirtualDisplay created: ${virtualDisplay != null}")
+        
+        if (virtualDisplay == null) {
+            Log.e(TAG, "Failed to create VirtualDisplay")
+            onRecordingError("VirtualDisplay 创建失败")
+        } else {
+            Log.d(TAG, "VirtualDisplay created successfully: ${virtualDisplay?.display?.displayId}")
+        }
     }
 
     private fun getMediaProjection(

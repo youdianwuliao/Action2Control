@@ -369,6 +369,21 @@ class FloatingControlService : Service() {
 
         try {
             Log.d(TAG, "=== Starting analyzeAndSave for video: $videoPath ===")
+            
+            // 检查视频文件
+            val videoFile = java.io.File(videoPath)
+            val fileSize = videoFile.length()
+            Log.d(TAG, "Video file size: $fileSize bytes")
+            
+            if (!videoFile.exists() || fileSize < 1024) {
+                Log.e(TAG, "Video file is too small or does not exist")
+                tvStatus.text = "视频文件无效"
+                Toast.makeText(this, "录制失败：视频文件无效", Toast.LENGTH_SHORT).show()
+                removeFloatingWindow()
+                stopSelf()
+                return
+            }
+
             val actionSequence = analyzeVideo(this, videoPath) { current, total, phase ->
                 Handler(Looper.getMainLooper()).post {
                     tvStatus.text = "$phase: $current/$total"

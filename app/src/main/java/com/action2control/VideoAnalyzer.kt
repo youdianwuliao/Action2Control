@@ -32,6 +32,7 @@ suspend fun analyzeVideo(
         // 步骤 1: 加载动作分类模型
         onProgress(0, 100, "加载分类模型")
         val modelLoaded = actionClassifier.loadModel()
+        Log.i("analyzeVideo", "TFLite model loaded: $modelLoaded")
         if (!modelLoaded) {
             Log.w("analyzeVideo", "TFLite model not found, all frames will be classified as 'unknown'")
         }
@@ -39,6 +40,7 @@ suspend fun analyzeVideo(
         // 步骤 2: 初始化姿态估计器
         onProgress(0, 100, "初始化姿态估计")
         val poseInitialized = poseEstimator.initialize()
+        Log.i("analyzeVideo", "PoseLandmarker initialized: $poseInitialized")
         if (!poseInitialized) {
             Log.e("analyzeVideo", "PoseLandmarker initialization failed")
             return@withContext emptyList<String>()
@@ -48,7 +50,7 @@ suspend fun analyzeVideo(
         onProgress(0, 100, "提取视频帧")
         frames = frameExtractor.extractFrames(videoPath)
         if (frames.isEmpty()) {
-            Log.e("analyzeVideo", "No frames extracted from video")
+            Log.e("analyzeVideo", "No frames extracted from video (video may be empty or invalid)")
             return@withContext emptyList<String>()
         }
         Log.i("analyzeVideo", "Extracted ${frames.size} frames")
