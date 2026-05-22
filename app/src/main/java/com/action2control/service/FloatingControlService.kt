@@ -202,27 +202,33 @@ class FloatingControlService : Service() {
 
         // 设置按钮点击事件
         btnStart.setOnClickListener {
-            Log.d(TAG, "btnStart CLICKED, state=$recordState")
+            Log.d(TAG, "=== btnStart CLICKED === state=$recordState")
             if (recordState == RecordState.IDLE) {
                 startRecording(resultCode, data)
+            } else {
+                Log.d(TAG, "Ignoring click, current state: $recordState")
             }
         }
 
         btnPause.setOnClickListener {
-            Log.d(TAG, "btnPause CLICKED, state=$recordState")
+            Log.d(TAG, "=== btnPause CLICKED === state=$recordState")
             when (recordState) {
                 RecordState.RECORDING -> pauseRecording()
                 RecordState.PAUSED -> resumeRecording()
-                else -> {}
+                else -> Log.d(TAG, "Ignoring pause click, current state: $recordState")
             }
         }
 
         btnStop.setOnClickListener {
-            Log.d(TAG, "btnStop CLICKED, state=$recordState")
+            Log.d(TAG, "=== btnStop CLICKED === state=$recordState")
             if (recordState == RecordState.RECORDING || recordState == RecordState.PAUSED) {
                 stopRecording()
+            } else {
+                Log.d(TAG, "Ignoring stop click, current state: $recordState")
             }
         }
+
+        Log.d(TAG, "Click listeners set for all buttons")
 
         // 只在拖拽区域处理拖拽，不影响按钮点击
         setupDragOnView(dragHandle)
@@ -558,7 +564,9 @@ class FloatingControlService : Service() {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
-            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+            // 允许接收点击事件，但不获取焦点
+            WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
+            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
