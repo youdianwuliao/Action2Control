@@ -12,7 +12,9 @@ data class SavedAction(
     val loopMode: LoopMode = LoopMode.INFINITE,
     val loopCount: Int = 1,
     val videoPath: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    val targetApp: String? = null, // 目标 App 的包名（如：com.ss.android.ugc.aweme 表示抖音）
+    val targetAppName: String? = null // 目标 App 的显示名称（如："抖音"）
 )
 
 /**
@@ -38,7 +40,9 @@ object ActionSerializer {
             action.loopMode.name,
             action.loopCount.toString(),
             action.videoPath ?: "",
-            action.createdAt.toString()
+            action.createdAt.toString(),
+            action.targetApp ?: "",
+            action.targetAppName ?: ""
         ).joinToString(ACTION_SEPARATOR)
     }
 
@@ -54,7 +58,9 @@ object ActionSerializer {
                 loopMode = LoopMode.valueOf(parts[3]),
                 loopCount = parts[4].toInt(),
                 videoPath = parts[5].takeIf { it.isNotEmpty() },
-                createdAt = parts[6].toLong()
+                createdAt = parts[6].toLong(),
+                targetApp = parts.getOrNull(7)?.takeIf { it.isNotEmpty() },
+                targetAppName = parts.getOrNull(8)?.takeIf { it.isNotEmpty() }
             )
         } catch (e: Exception) {
             null

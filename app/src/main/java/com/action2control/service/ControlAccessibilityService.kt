@@ -2,6 +2,7 @@ package com.action2control.service
 
 import android.accessibilityservice.AccessibilityService
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.util.Log
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
@@ -22,6 +23,18 @@ class ControlAccessibilityService : AccessibilityService() {
     }
 
     private var actionDispatcher: ActionDispatcher? = null
+    private var currentForegroundPackage: String? = null
+    private var currentForegroundAppName: String? = null
+
+    /**
+     * 获取当前前台 App 的包名
+     */
+    fun getCurrentForegroundPackage(): String? = currentForegroundPackage
+
+    /**
+     * 获取当前前台 App 的名称
+     */
+    fun getCurrentForegroundAppName(): String? = currentForegroundAppName
 
     /**
      * 执行单个动作（供外部调用）
@@ -30,8 +43,39 @@ class ControlAccessibilityService : AccessibilityService() {
         actionDispatcher?.dispatchAction(action)
     }
 
+    /**
+     * 启动指定的 App
+     */
+    fun launchApp(packageName: String) {
+        try {
+            val launchIntent = packageManager.getLaunchIntentForPackage(packageName)
+            if (launchIntent != null) {
+                startActivity(launchIntent)
+                Log.i(TAG, "Launched app: $packageName")
+            } else {
+                Log.w(TAG, "No launch intent for package: $packageName")
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to launch app: $packageName", e)
+        }
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        // 不需要处理无障碍事件，仅用于手势执行
+        // 监听窗口状态变化，获取当前前台 App
+        if (event?.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) {
+            val packageName = event.packageName?.toString()
+            if (packageName != null && packageName != "com.action2control") {
+                currentForegroundPackage = packageName
+                // 获取 App 名称
+                try {
+                    val appInfo = packageManager.getApplicationInfo(packageName, 0)
+                    currentForegroundAppName = packageManager.getApplicationLabel(appInfo).toString()
+                } catch (e: PackageManager.NameNotFoundException) {
+                    currentForegroundAppName = packageName
+                }
+                Log.d(TAG, "Foreground app changed: $packageName ($currentForegroundAppName)")
+            }
+        }
     }
 
     override fun onInterrupt() {

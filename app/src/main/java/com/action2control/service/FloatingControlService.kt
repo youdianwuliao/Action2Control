@@ -317,8 +317,15 @@ class FloatingControlService : Service() {
         btnPause.visibility = View.GONE
         btnStop.visibility = View.GONE
 
+        // 获取录制时的目标 App 信息（通过无障碍服务）
+        val service = ControlAccessibilityService.getInstance()
+        val targetAppPackage = service?.getCurrentForegroundPackage()
+        val targetAppName = service?.getCurrentForegroundAppName()
+        
+        Log.d(TAG, "Target app: $targetAppPackage ($targetAppName)")
+
         CoroutineScope(Dispatchers.Main).launch {
-            analyzeAndSave(videoPath)
+            analyzeAndSave(videoPath, targetAppPackage, targetAppName)
         }
     }
 
@@ -356,7 +363,7 @@ class FloatingControlService : Service() {
         }
     }
 
-    private suspend fun analyzeAndSave(videoPath: String) {
+    private suspend fun analyzeAndSave(videoPath: String, targetAppPackage: String?, targetAppName: String?) {
         val layout = contentLayout ?: return
         val tvStatus = layout.findViewById<TextView>(R.id.tv_status)
 
@@ -369,16 +376,19 @@ class FloatingControlService : Service() {
 
             if (actionSequence.isNotEmpty()) {
                 val savedAction = SavedAction(
-                    name = "动作序列 ${System.currentTimeMillis()}",
+                    name = "${targetAppName ?: "动作序列"} ${System.currentTimeMillis()}",
                     actions = actionSequence,
-                    videoPath = videoPath
+                    videoPath = videoPath,
+                    targetApp = targetAppPackage,
+                    targetAppName = targetAppName
                 )
                 actionRepository?.saveAction(savedAction)
 
-                Log.i(TAG, "Saved action: ${savedAction.name}, actions: $actionSequence")
+                Log.i(TAG, "Saved action: ${savedAction.name}, actions: $actionSequence, target: $targetAppPackage")
 
-                tvStatus.text = "已保存 (${actionSequence.size} 个动作)"
-                Toast.makeText(this, "动作已保存", Toast.LENGTH_SHORT).show()
+                val appInfo = if (targetAppName != null) " ($targetAppName)" else ""
+                tvStatus.text = "已保存${appInfo} (${actionSequence.size} 个动作)"
+                Toast.makeText(this, "动作已保存${appInfo}", Toast.LENGTH_SHORT).show()
 
                 Handler(Looper.getMainLooper()).postDelayed({
                     removeFloatingWindow()
@@ -470,6 +480,16 @@ class FloatingControlService : Service() {
             val layout = contentLayout ?: return@launch
             val tvStatus = layout.findViewById<TextView>(R.id.tv_status)
 
+            // 如果有目标 App，先切换到目标 App
+            if (action.targetApp != null) {
+                withContext(Dispatchers.Main) {
+                    tvStatus.text = "启动 ${action.targetAppName ?: action.targetApp}..."
+                }
+                Log.d(TAG, "Launching target app: ${action.targetApp} (${action.targetAppName})")
+                service.launchApp(action.targetApp)
+                delay(2000) // 等待 App 启动
+            }
+
             var loopIndex = 0
             val maxLoops = if (action.loopMode == LoopMode.INFINITE) Int.MAX_VALUE else action.loopCount
 
@@ -482,7 +502,8 @@ class FloatingControlService : Service() {
                 if (!isActive) break
 
                 withContext(Dispatchers.Main) {
-                    tvStatus.text = "第 ${loopIndex + 1} 轮"
+                    val appInfo = if (action.targetAppName != null) " (${action.targetAppName})" else ""
+                    tvStatus.text = "第 ${loopIndex + 1} 轮$appInfo"
                 }
 
                 // 执行动作序列

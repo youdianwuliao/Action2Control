@@ -176,6 +176,29 @@ fun ActionCard(
 
             Spacer(modifier = Modifier.height(4.dp))
 
+            // 目标 App 信息
+            action.targetAppName?.let { appName ->
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Default.PhoneAndroid,
+                        contentDescription = null,
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.secondary
+                    )
+                    Text(
+                        appName,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.secondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
             // 动作列表预览
             Text(
                 action.actions.joinToString(" → "),
