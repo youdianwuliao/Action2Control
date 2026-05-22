@@ -113,6 +113,7 @@ class ScreenRecorder(
 
         Log.d(TAG, "Stopping recording")
 
+        var stopException: Exception? = null
         try {
             // 如果处于暂停状态，先恢复再停止
             if (isPaused) {
@@ -123,23 +124,37 @@ class ScreenRecorder(
 
             // 停止录制
             mediaRecorder?.stop()
-            Log.d(TAG, "MediaRecorder stopped")
-
-            val path = currentVideoFile?.absolutePath ?: ""
-            Log.d(TAG, "Video saved to: $path")
-
-            // 标记状态
-            isRecording = false
-            isPaused = false
-
-            // 回调通知完成
-            onRecordingComplete(path)
+            Log.d(TAG, "MediaRecorder stopped successfully")
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping recording", e)
-            onRecordingError("停止录制失败: ${e.message}")
-        } finally {
-            cleanup()
+            Log.e(TAG, "Error stopping recording (often happens if recording is too short)", e)
+            stopException = e
         }
+
+        val path = currentVideoFile?.absolutePath ?: ""
+        val file = currentVideoFile
+        
+        // 即使 stop() 报错，也要检查文件是否有效 (某些设备 stop 会抛异常但文件是完整的)
+        val fileSize = file?.length() ?: 0
+        val fileValid = file?.exists() == true && fileSize > 1024 // 至少 1KB
+        
+        if (stopException == null) {
+            // 正常停止
+            Log.d(TAG, "Video saved to: $path")
+            onRecordingComplete(path)
+        } else if (fileValid) {
+            // stop 报错但文件有效，尝试继续分析
+            Log.w(TAG, "stop() threw exception but file is valid ($path, size: $fileSize), proceeding to analysis")
+            onRecordingComplete(path)
+        } else {
+            // stop 报错且文件无效
+            Log.e(TAG, "Stop failed and file is invalid or empty")
+            onRecordingError("停止录制失败: ${stopException.message}")
+        }
+
+        // 清理状态
+        isRecording = false
+        isPaused = false
+        cleanup()
     }
 
     /**
