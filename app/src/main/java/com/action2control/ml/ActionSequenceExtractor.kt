@@ -110,7 +110,7 @@ object ActionSequenceExtractor {
             append("Unique actions: ${uniqueActions.joinToString()}\n")
             append("Action distribution:\n")
             actionCounts.entries.sortedByDescending { it.value }.forEach { (action, count) ->
-                append("  $action: $count frames (${count * 100 / totalFrames}%)\n")
+                append("  $action: $count frames (${String.format("%.1f", count * 100.0 / totalFrames)}%)\n")
             }
         }
     }

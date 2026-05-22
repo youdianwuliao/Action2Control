@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.lifecycleScope
 import com.action2control.data.ActionRepository
 import com.action2control.data.LoopMode
 import com.action2control.data.SavedAction
@@ -32,48 +33,47 @@ import com.action2control.service.FloatingControlService
 import com.action2control.ui.ActionDetailDialog
 import com.action2control.ui.MainScreen
 import com.action2control.ui.NewActionDialog
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.launch
 
 /**
  * 前置条件检查结果
  */
 data class PreconditionResult(
     val isMet: Boolean,
-    val missingItems: List<String>
+    val missingItems: List<String>,
+    val isChecking: Boolean = false
 )
 
 /**
- * 检查所有前置条件
+ * 异步检查所有前置条件
  */
-fun checkPreconditions(context: android.content.Context): PreconditionResult {
+suspend fun checkPreconditionsAsync(context: android.content.Context): PreconditionResult {
     val missing = mutableListOf<String>()
     
-    // 1. 无障碍服务
-    if (!ControlAccessibilityService.isServiceRunning()) {
+    // 1. 无障碍服务 (同步检查)
+    if (!ControlAccessibilityService.isServiceRunning(context)) {
         missing.add("无障碍服务未开启")
     }
     
-    // 2. 悬浮窗权限
+    // 2. 悬浮窗权限 (同步检查)
     if (!Settings.canDrawOverlays(context)) {
         missing.add("悬浮窗权限未授权")
     }
     
-    // 3. MediaPipe/TFLite 引擎检查
+    // 3. MediaPipe/TFLite 引擎检查 (异步)
     try {
-        runBlocking {
-            val poseEstimator = PoseEstimator(context)
-            val poseOk = poseEstimator.initialize()
-            poseEstimator.close()
-            if (!poseOk) {
-                missing.add("姿态估计引擎不可用 (设备架构可能不支持)")
-            }
-            
-            val classifier = ActionClassifier(context)
-            val modelOk = classifier.loadModel()
-            classifier.close()
-            if (!modelOk) {
-                missing.add("动作分类模型加载失败")
-            }
+        val poseEstimator = PoseEstimator(context)
+        val poseOk = poseEstimator.initialize()
+        poseEstimator.close()
+        if (!poseOk) {
+            missing.add("姿态估计引擎不可用 (设备架构可能不支持)")
+        }
+        
+        val classifier = ActionClassifier(context)
+        val modelOk = classifier.loadModel()
+        classifier.close()
+        if (!modelOk) {
+            missing.add("动作分类模型加载失败")
         }
     } catch (e: Exception) {
         missing.add("AI 引擎初始化异常: ${e.message}")
@@ -93,31 +93,36 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var actionRepository: ActionRepository
-    private var preconditionResult by mutableStateOf<PreconditionResult?>(null)
+    private var preconditionResult by mutableStateOf<PreconditionResult>(
+        PreconditionResult(false, emptyList(), isChecking = true)
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         actionRepository = ActionRepository(this)
-        preconditionResult = checkPreconditions(this)
+
+        // 异步检查前置条件，避免阻塞主线程
+        lifecycleScope.launch {
+            preconditionResult = checkPreconditionsAsync(this@MainActivity)
+        }
 
         setContent {
             MaterialTheme {
-                val currentPreconditions = preconditionResult
-                if (currentPreconditions != null) {
-                    AppContent(
-                        actionRepository = actionRepository,
-                        preconditions = currentPreconditions,
-                        onRecheck = {
-                            preconditionResult = checkPreconditions(this@MainActivity)
-                        },
-                        onOpenSettings = {
-                            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                        },
-                        onCheckOverlayPermission = {
-                            startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                AppContent(
+                    actionRepository = actionRepository,
+                    preconditions = preconditionResult,
+                    onRecheck = {
+                        lifecycleScope.launch {
+                            preconditionResult = checkPreconditionsAsync(this@MainActivity)
                         }
-                    )
-                }
+                    },
+                    onOpenSettings = {
+                        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    },
+                    onCheckOverlayPermission = {
+                        startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION))
+                    }
+                )
             }
         }
     }
@@ -146,6 +151,17 @@ fun AppContent(
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
+    }
+
+    // 检查中，显示 Loading
+    if (preconditions.isChecking) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
     }
 
     // 如果前置条件不满足，显示强制遮罩

@@ -82,7 +82,6 @@ class ActionRepository(context: Context) {
 
         // 写入新的
         for ((index, pair) in actions.withIndex()) {
-            editor.putFloat("${KEY_ACTION_LIST}_$index", 0f) // placeholder
             editor.putString("${KEY_ACTION_LIST}_$index", pair.second)
         }
 

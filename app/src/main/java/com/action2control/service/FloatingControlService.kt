@@ -38,6 +38,8 @@ import com.action2control.data.SavedAction
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -82,8 +84,13 @@ class FloatingControlService : Service() {
 
     // 执行模式变量
     private var executeJob: Job? = null
+    @Volatile
     private var executePaused = false
     private var currentAction: SavedAction? = null
+    private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    
+    // 保存 startId 用于正确停止服务
+    private var serviceStartId = 0
 
     // 枚举录制状态
     private enum class RecordState {
@@ -103,8 +110,9 @@ class FloatingControlService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        serviceStartId = startId
         val mode = intent?.getStringExtra(EXTRA_MODE) ?: MODE_RECORD
-        Log.d(TAG, "onStartCommand mode=$mode, intent extras: ${intent?.extras}")
+        Log.d(TAG, "onStartCommand mode=$mode, startId=$startId, intent extras: ${intent?.extras}")
 
         // Android 14+ 必须在 onStartCommand 中调用 startForeground
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -130,7 +138,7 @@ class FloatingControlService : Service() {
                     startExecuting(action)
                 } else {
                     Toast.makeText(this, "动作未找到", Toast.LENGTH_SHORT).show()
-                    stopSelf()
+                    stopSelf(serviceStartId)
                 }
             }
         }
@@ -143,6 +151,7 @@ class FloatingControlService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         instance = null
+        serviceScope.cancel()
         removeFloatingWindow()
         screenRecorder?.release()
         executeJob?.cancel()
@@ -324,8 +333,10 @@ class FloatingControlService : Service() {
         
         Log.d(TAG, "Target app: $targetAppPackage ($targetAppName)")
 
-        CoroutineScope(Dispatchers.Main).launch {
-            analyzeAndSave(videoPath, targetAppPackage, targetAppName)
+        serviceScope.launch {
+            withContext(Dispatchers.Main) {
+                analyzeAndSave(videoPath, targetAppPackage, targetAppName)
+            }
         }
     }
 
@@ -380,7 +391,7 @@ class FloatingControlService : Service() {
                 tvStatus.text = "视频文件无效"
                 Toast.makeText(this, "录制失败：视频文件无效", Toast.LENGTH_SHORT).show()
                 removeFloatingWindow()
-                stopSelf()
+                stopSelf(serviceStartId)
                 return
             }
 
@@ -411,7 +422,7 @@ class FloatingControlService : Service() {
 
                 Handler(Looper.getMainLooper()).postDelayed({
                     removeFloatingWindow()
-                    stopSelf()
+                    stopSelf(serviceStartId)
                 }, 2000)
             } else {
                 Log.w(TAG, "No actions recognized from video")
@@ -420,7 +431,7 @@ class FloatingControlService : Service() {
 
                 Handler(Looper.getMainLooper()).postDelayed({
                     removeFloatingWindow()
-                    stopSelf()
+                    stopSelf(serviceStartId)
                 }, 2000)
             }
         } catch (e: Exception) {
@@ -430,7 +441,7 @@ class FloatingControlService : Service() {
 
             Handler(Looper.getMainLooper()).postDelayed({
                 removeFloatingWindow()
-                stopSelf()
+                stopSelf(serviceStartId)
             }, 2000)
         }
     }
@@ -473,7 +484,7 @@ class FloatingControlService : Service() {
         btnStop.setOnClickListener {
             executeJob?.cancel()
             removeFloatingWindow()
-            stopSelf()
+            stopSelf(serviceStartId)
         }
 
         // 只在拖拽区域处理拖拽
@@ -486,13 +497,13 @@ class FloatingControlService : Service() {
 
     private fun startExecuting(action: SavedAction) {
         executePaused = false
-        executeJob = CoroutineScope(Dispatchers.Default).launch {
+        executeJob = serviceScope.launch {
             val service = ControlAccessibilityService.getInstance()
             if (service == null) {
                 withContext(Dispatchers.Main) {
                     Toast.makeText(this@FloatingControlService, "无障碍服务未开启", Toast.LENGTH_SHORT).show()
                     removeFloatingWindow()
-                    stopSelf()
+                    stopSelf(serviceStartId)
                 }
                 return@launch
             }
@@ -546,7 +557,7 @@ class FloatingControlService : Service() {
 
                 Handler(Looper.getMainLooper()).postDelayed({
                     removeFloatingWindow()
-                    stopSelf()
+                    stopSelf(serviceStartId)
                 }, 2000)
             }
         }

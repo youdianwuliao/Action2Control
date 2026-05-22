@@ -57,10 +57,13 @@ class FrameExtractor(private val context: Context) {
 
                 if (frame != null) {
                     val scaledFrame = Bitmap.createScaledBitmap(frame, 640, 480, true)
+                    // 转换为 RGB_565 减少内存占用 (从 4 bytes/pixel 到 2 bytes/pixel)
+                    val rgb565Frame = scaledFrame.copy(Bitmap.Config.RGB_565, false)
                     if (scaledFrame != frame) {
                         frame.recycle()
                     }
-                    frames.add(scaledFrame)
+                    scaledFrame.recycle()
+                    frames.add(rgb565Frame)
                     frameCount++
                     Log.d(TAG, "Extracted frame $frameCount at ${currentTimeUs / 1000}ms")
                 }

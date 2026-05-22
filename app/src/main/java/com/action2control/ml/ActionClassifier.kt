@@ -39,6 +39,9 @@ class ActionClassifier(private val context: Context) {
 
     private var interpreter: Interpreter? = null
     private var isModelLoaded = false
+    private val inputBuffer: ByteBuffer = ByteBuffer.allocateDirect(INPUT_SIZE * 4).apply {
+        order(ByteOrder.nativeOrder())
+    }
 
     /**
      * 从 assets 加载 TFLite 模型
@@ -75,10 +78,9 @@ class ActionClassifier(private val context: Context) {
 
         try {
             val inputArray = normalizeLandmarks(landmarks)
-            val inputBuffer = ByteBuffer.allocateDirect(INPUT_SIZE * 4).apply {
-                order(ByteOrder.nativeOrder())
-            }
-
+            
+            // 复用预分配的 ByteBuffer
+            inputBuffer.rewind()
             for (value in inputArray) {
                 inputBuffer.putFloat(value)
             }
@@ -143,13 +145,13 @@ class ActionClassifier(private val context: Context) {
      */
     private fun loadModelFile(): ByteBuffer {
         val fileDescriptor = context.assets.openFd(MODEL_FILE)
-        val inputStream = FileInputStream(fileDescriptor.fileDescriptor)
-        val channel = inputStream.channel
-
         val startOffset = fileDescriptor.startOffset
         val declaredLength = fileDescriptor.declaredLength
 
-        return channel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+        FileInputStream(fileDescriptor.fileDescriptor).use { inputStream ->
+            val channel = inputStream.channel
+            return channel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength)
+        }
     }
 
     /**

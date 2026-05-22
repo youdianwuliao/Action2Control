@@ -79,6 +79,6 @@ suspend fun analyzeVideo(
         // 释放所有资源
         poseEstimator.close()
         actionClassifier.close()
-        frames.forEach { it.recycle() }
+        frames.forEach { if (!it.isRecycled) it.recycle() }
     }
 }

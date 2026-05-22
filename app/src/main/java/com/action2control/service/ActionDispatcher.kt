@@ -7,6 +7,8 @@ import android.graphics.Path
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 class ActionDispatcher(
     private val service: AccessibilityService,
@@ -24,6 +26,74 @@ class ActionDispatcher(
             "like" -> executeTapCenter()
             "back" -> executeBack()
             else -> Log.w(tag, "Unknown action: $action")
+        }
+    }
+
+    /**
+     * 异步执行手势 (基于 suspendCoroutine)
+     * 等待手势完成后再返回
+     */
+    suspend fun dispatchGestureAsync(gesture: GestureDescription): Boolean = suspendCancellableCoroutine { cont ->
+        val callback = object : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
+            override fun onCompleted(gestureDescription: GestureDescription) {
+                cont.resume(true)
+            }
+            override fun onCancelled(gestureDescription: GestureDescription) {
+                cont.resume(false)
+            }
+        }
+        service.dispatchGesture(gesture, callback, Handler(Looper.getMainLooper()))
+    }
+
+    /**
+     * 异步执行滑动手势
+     */
+    suspend fun executeSwipeAsync(
+        fromX: Float,
+        fromY: Float,
+        toX: Float,
+        toY: Float,
+        duration: Long = 300L
+    ): Boolean {
+        val path = Path().apply {
+            moveTo(fromX, fromY)
+            lineTo(toX, toY)
+        }
+
+        val stroke = StrokeDescription(path, 0L, duration)
+        val gesture = GestureDescription.Builder()
+            .addStroke(stroke)
+            .build()
+
+        return dispatchGestureAsync(gesture).also { success ->
+            if (success) {
+                Log.i(tag, "Swipe gesture completed")
+            } else {
+                Log.e(tag, "Swipe gesture cancelled")
+            }
+        }
+    }
+
+    /**
+     * 异步执行点击手势
+     */
+    suspend fun executeTapAsync(x: Float, y: Float): Boolean {
+        val path = Path().apply {
+            moveTo(x, y)
+            lineTo(x, y)
+        }
+
+        val stroke = StrokeDescription(path, 0L, 100L)
+        val gesture = GestureDescription.Builder()
+            .addStroke(stroke)
+            .build()
+
+        return dispatchGestureAsync(gesture).also { success ->
+            if (success) {
+                Log.i(tag, "Tap gesture completed")
+            } else {
+                Log.e(tag, "Tap gesture cancelled")
+            }
         }
     }
 

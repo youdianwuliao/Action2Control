@@ -1,11 +1,15 @@
 package com.action2control.service
 
 import android.accessibilityservice.AccessibilityService
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityManager
 
 class ControlAccessibilityService : AccessibilityService() {
 
@@ -16,7 +20,21 @@ class ControlAccessibilityService : AccessibilityService() {
         private var instance: ControlAccessibilityService? = null
 
         @JvmStatic
-        fun isServiceRunning(): Boolean = instance != null
+        fun isServiceRunning(context: Context? = null): Boolean {
+            // 优先使用 AccessibilityManager 检查 (更可靠)
+            if (context != null) {
+                val accessibilityManager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+                val enabledServices = Settings.Secure.getString(
+                    context.contentResolver,
+                    Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+                ) ?: ""
+                val componentName = ComponentName(context, ControlAccessibilityService::class.java)
+                return enabledServices.contains(componentName.flattenToString()) &&
+                       accessibilityManager.isEnabled
+            }
+            // 回退到 instance 检查
+            return instance != null
+        }
 
         @JvmStatic
         fun getInstance(): ControlAccessibilityService? = instance
@@ -89,7 +107,15 @@ class ControlAccessibilityService : AccessibilityService() {
 
         val metrics = android.util.DisplayMetrics()
         val windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        windowManager.defaultDisplay.getMetrics(metrics)
+        val display = windowManager.currentWindowMetrics?.bounds
+        if (display != null) {
+            metrics.widthPixels = display.width()
+            metrics.heightPixels = display.height()
+            metrics.densityDpi = this.resources.displayMetrics.densityDpi
+        } else {
+            @Suppress("DEPRECATION")
+            windowManager.defaultDisplay.getMetrics(metrics)
+        }
 
         actionDispatcher = ActionDispatcher(
             service = this,
