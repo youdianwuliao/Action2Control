@@ -13,7 +13,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.action2control.data.ActionRepository
 import com.action2control.data.LoopMode
 import com.action2control.data.SavedAction
@@ -62,10 +65,32 @@ fun AppContent(
     onCheckOverlayPermission: () -> Unit
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    // 使用 mutableStateOf 保存动作列表
     var actions by remember { mutableStateOf(actionRepository.getAllActions()) }
     var showNewActionDialog by remember { mutableStateOf(false) }
     var selectedAction by remember { mutableStateOf<SavedAction?>(null) }
     var showDeleteConfirm by remember { mutableStateOf<SavedAction?>(null) }
+
+    // 监听 Lifecycle，当 App 回到前台时自动刷新列表
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                Log.d("AppContent", "Lifecycle ON_RESUME -> Refreshing action list")
+                actions = actionRepository.getAllActions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    // 初始加载一次（如果 ON_RESUME 没有触发）
+    LaunchedEffect(Unit) {
+        actions = actionRepository.getAllActions()
+    }
 
     // MediaProjection 授权
     var mediaProjectionResult by remember { mutableStateOf<Pair<Int, Intent>?>(null) }

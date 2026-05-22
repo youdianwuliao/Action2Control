@@ -368,11 +368,15 @@ class FloatingControlService : Service() {
         val tvStatus = layout.findViewById<TextView>(R.id.tv_status)
 
         try {
+            Log.d(TAG, "=== Starting analyzeAndSave for video: $videoPath ===")
             val actionSequence = analyzeVideo(this, videoPath) { current, total, phase ->
                 Handler(Looper.getMainLooper()).post {
                     tvStatus.text = "$phase: $current/$total"
                 }
             }
+
+            Log.d(TAG, "Analysis result: ${actionSequence.size} actions found")
+            Log.d(TAG, "Actions: $actionSequence")
 
             if (actionSequence.isNotEmpty()) {
                 val savedAction = SavedAction(
@@ -382,9 +386,9 @@ class FloatingControlService : Service() {
                     targetApp = targetAppPackage,
                     targetAppName = targetAppName
                 )
+                Log.d(TAG, "Saving action to repository: $savedAction")
                 actionRepository?.saveAction(savedAction)
-
-                Log.i(TAG, "Saved action: ${savedAction.name}, actions: $actionSequence, target: $targetAppPackage")
+                Log.d(TAG, "Action saved successfully")
 
                 val appInfo = if (targetAppName != null) " ($targetAppName)" else ""
                 tvStatus.text = "已保存${appInfo} (${actionSequence.size} 个动作)"
@@ -395,6 +399,7 @@ class FloatingControlService : Service() {
                     stopSelf()
                 }, 2000)
             } else {
+                Log.w(TAG, "No actions recognized from video")
                 tvStatus.text = "未识别到动作"
                 Toast.makeText(this, "未识别到有效动作", Toast.LENGTH_SHORT).show()
 
@@ -404,7 +409,7 @@ class FloatingControlService : Service() {
                 }, 2000)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "分析失败", e)
+            Log.e(TAG, "Exception during analyzeAndSave", e)
             tvStatus.text = "分析失败"
             Toast.makeText(this, "分析失败: ${e.message}", Toast.LENGTH_SHORT).show()
 
