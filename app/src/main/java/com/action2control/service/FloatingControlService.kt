@@ -199,6 +199,13 @@ class FloatingControlService : Service() {
 
         Log.d(TAG, "Views: dragHandle=${dragHandle != null}, contentLayout=${contentLayout != null}")
         Log.d(TAG, "Buttons: btnStart=${btnStart != null}, btnPause=${btnPause != null}, btnStop=${btnStop != null}")
+        Log.d(TAG, "btnStart clickable=${btnStart.isClickable}, enabled=${btnStart.isEnabled}")
+
+        // 确保按钮可点击
+        btnStart.isClickable = true
+        btnStart.isEnabled = true
+        btnPause.isClickable = true
+        btnStop.isClickable = true
 
         // 设置按钮点击事件
         btnStart.setOnClickListener {
@@ -564,9 +571,11 @@ class FloatingControlService : Service() {
                 WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY
             else
                 WindowManager.LayoutParams.TYPE_PHONE,
-            // 允许接收点击事件，但不获取焦点
+            // FLAG_NOT_FOCUSABLE: 不获取输入法焦点
+            // FLAG_NOT_TOUCH_MODAL: 允许窗口外的触摸事件传递
+            // FLAG_WATCH_OUTSIDE_TOUCH: 监听窗口外的触摸事件
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
-            WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+            WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL,
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
