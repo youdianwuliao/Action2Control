@@ -265,7 +265,7 @@ class ScreenRecorder(
         }
 
         virtualDisplay = MediaProjectionHelper.createVirtualDisplay(projection, displayMetrics, surface)
-        Log.d(TAG, "VirtualDisplay created")
+        Log.d(TAG, "VirtualDisplay created: ${virtualDisplay != null}")
     }
 
     private fun getMediaProjection(

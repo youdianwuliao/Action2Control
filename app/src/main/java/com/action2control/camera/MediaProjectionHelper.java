@@ -1,6 +1,7 @@
 package com.action2control.camera;
 
 import android.hardware.display.DisplayManager;
+import android.hardware.display.VirtualDisplay;
 import android.media.projection.MediaProjection;
 import android.os.Build;
 import android.os.Handler;
@@ -14,34 +15,44 @@ import java.lang.reflect.Method;
 public class MediaProjectionHelper {
     private static final String TAG = "MediaProjectionHelper";
 
-    public static android.hardware.display.VirtualDisplay createVirtualDisplay(
+    public static VirtualDisplay createVirtualDisplay(
             MediaProjection projection,
             DisplayMetrics displayMetrics,
             Surface surface) {
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+
+        if (Build.VERSION.SDK_INT >= 34) {
             try {
-                // Use reflection to call the API 34 specific overload to avoid compiler ambiguity
+                // API 34+ method signature:
+                // createVirtualDisplay(String name, int width, int height, int displayDensityDpi,
+                //                      int flags, Surface surface, MediaProjection.Callback callback, Handler handler)
                 MediaProjection.Callback callback = new MediaProjection.Callback() {
                     @Override
                     public void onStop() {
                         Log.d(TAG, "MediaProjection callback: onStop");
                     }
                 };
-                
-                Method method = MediaProjection.class.getMethod(
+
+                Method method = projection.getClass().getMethod(
                         "createVirtualDisplay",
-                        String.class, int.class, int.class, int.class, int.class,
-                        Surface.class, MediaProjection.Callback.class, Handler.class
+                        String.class,
+                        int.class,
+                        int.class,
+                        int.class,
+                        int.class,
+                        Surface.class,
+                        MediaProjection.Callback.class,
+                        Handler.class
                 );
-                
-                return (android.hardware.display.VirtualDisplay) method.invoke(
+
+                Log.d(TAG, "Found API 34 createVirtualDisplay method via reflection");
+
+                return (VirtualDisplay) method.invoke(
                         projection,
                         "ScreenRecorder",
                         displayMetrics.widthPixels,
                         displayMetrics.heightPixels,
                         displayMetrics.densityDpi,
-                        DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC,
+                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                         surface,
                         callback,
                         new Handler(Looper.getMainLooper())
@@ -56,7 +67,7 @@ public class MediaProjectionHelper {
                     displayMetrics.widthPixels,
                     displayMetrics.heightPixels,
                     displayMetrics.densityDpi,
-                    DisplayManager.VIRTUAL_DISPLAY_FLAG_PUBLIC,
+                    DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     surface,
                     null,
                     null
