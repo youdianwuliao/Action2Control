@@ -389,8 +389,10 @@ class FloatingControlService : Service() {
             // 20KB 阈值，正常录制 1 秒至少应有 50KB+
             if (!videoFile.exists() || fileSize < 20 * 1024) {
                 Log.e(TAG, "Video file is too small or does not exist ($fileSize bytes)")
-                tvStatus.text = "录制文件过小"
-                Toast.makeText(this, "录制时间过短或异常，请录制至少 2 秒", Toast.LENGTH_LONG).show()
+                withContext(Dispatchers.Main) {
+                    tvStatus.text = "录制文件过小"
+                    Toast.makeText(this@FloatingControlService, "录制时间过短或异常，请录制至少 2 秒", Toast.LENGTH_LONG).show()
+                }
                 removeFloatingWindow()
                 stopSelf(serviceStartId)
                 return
@@ -421,8 +423,10 @@ class FloatingControlService : Service() {
                 Log.d(TAG, "Action saved successfully")
 
                 val appInfo = if (targetAppName != null) " ($targetAppName)" else ""
-                tvStatus.text = "已保存${appInfo} (${actionSequence.size} 个动作)"
-                Toast.makeText(this, "动作已保存${appInfo}", Toast.LENGTH_SHORT).show()
+                withContext(Dispatchers.Main) {
+                    tvStatus.text = "已保存${appInfo} (${actionSequence.size} 个动作)"
+                    Toast.makeText(this@FloatingControlService, "动作已保存${appInfo}", Toast.LENGTH_SHORT).show()
+                }
 
                 Handler(Looper.getMainLooper()).postDelayed({
                     removeFloatingWindow()
@@ -430,18 +434,22 @@ class FloatingControlService : Service() {
                 }, 2000)
             } else {
                 Log.w(TAG, "No actions recognized from video")
-                tvStatus.text = "未识别到动作"
-                Toast.makeText(this, "未识别到有效动作 (请确保画面清晰、动作幅度足够)", Toast.LENGTH_LONG).show()
+                withContext(Dispatchers.Main) {
+                    tvStatus.text = "未识别到动作"
+                    Toast.makeText(this@FloatingControlService, "未识别到有效动作 (请确保画面清晰、动作幅度足够)", Toast.LENGTH_LONG).show()
+                }
 
                 Handler(Looper.getMainLooper()).postDelayed({
                     removeFloatingWindow()
                     stopSelf(serviceStartId)
                 }, 2000)
             }
-        } catch (e: Exception) {
-            Log.e(TAG, "Exception during analyzeAndSave", e)
-            tvStatus.text = "分析失败"
-            Toast.makeText(this, "分析失败: ${e.message}", Toast.LENGTH_SHORT).show()
+        } catch (e: Throwable) {
+            Log.e(TAG, "Fatal error during analyzeAndSave", e)
+            withContext(Dispatchers.Main) {
+                tvStatus.text = "分析失败"
+                Toast.makeText(this@FloatingControlService, "分析失败: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
 
             Handler(Looper.getMainLooper()).postDelayed({
                 removeFloatingWindow()

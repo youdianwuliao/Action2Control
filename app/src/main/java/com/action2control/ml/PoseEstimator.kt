@@ -53,15 +53,12 @@ class PoseEstimator(private val context: Context) {
             Log.i(TAG, "PoseLandmarker initialized successfully")
             true
         } catch (e: UnsatisfiedLinkError) {
-            Log.e(TAG, "PoseLandmarker native library not available (this architecture may not be supported)", e)
+            Log.e(TAG, "Native library missing: MediaPipe not supported on this architecture (e.g., x86_64 emulator)", e)
             isInitialized = false
             false
-        } catch (e: IllegalStateException) {
-            Log.e(TAG, "PoseLandmarker initialization failed: model not found", e)
-            isInitialized = false
-            false
-        } catch (e: RuntimeException) {
-            Log.e(TAG, "PoseLandmarker initialization failed", e)
+        } catch (e: Throwable) {
+            // Catch ALL errors including unexpected crashes to prevent app force-close
+            Log.e(TAG, "PoseLandmarker initialization failed: ${e.message}", e)
             isInitialized = false
             false
         }
