@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.action2control"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.action2control"
         minSdk = 24
-        targetSdk = 34
+        targetSdk = 33
         versionCode = 25
         versionName = "0.25"
 

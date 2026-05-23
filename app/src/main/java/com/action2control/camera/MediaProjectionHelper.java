@@ -10,11 +10,10 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.Surface;
 
-import java.lang.reflect.Method;
-
 public class MediaProjectionHelper {
     private static final String TAG = "MediaProjectionHelper";
 
+    @SuppressWarnings("deprecation")
     public static VirtualDisplay createVirtualDisplay(
             MediaProjection projection,
             DisplayMetrics displayMetrics,
@@ -23,51 +22,12 @@ public class MediaProjectionHelper {
         Log.d(TAG, "Creating VirtualDisplay: " + displayMetrics.widthPixels + "x" + displayMetrics.heightPixels);
         Log.d(TAG, "Surface valid: " + surface.isValid());
 
-        if (Build.VERSION.SDK_INT >= 34) {
-            try {
-                // API 34+ method signature:
-                // createVirtualDisplay(String name, int width, int height, int displayDensityDpi,
-                //                      int flags, Surface surface, MediaProjection.Callback callback, Handler handler)
-                MediaProjection.Callback callback = new MediaProjection.Callback() {
-                    @Override
-                    public void onStop() {
-                        Log.d(TAG, "MediaProjection callback: onStop");
-                    }
-                };
+        try {
+            // Use legacy VirtualDisplay.Callback (works on all APIs when targetSdk < 34)
+            VirtualDisplay.Callback callback = new VirtualDisplay.Callback() {
+                // No need to override methods, empty implementation is sufficient
+            };
 
-                Method method = projection.getClass().getMethod(
-                        "createVirtualDisplay",
-                        String.class,
-                        int.class,
-                        int.class,
-                        int.class,
-                        int.class,
-                        Surface.class,
-                        MediaProjection.Callback.class,
-                        Handler.class
-                );
-
-                Log.d(TAG, "Found API 34 createVirtualDisplay method via reflection");
-
-                VirtualDisplay vd = (VirtualDisplay) method.invoke(
-                        projection,
-                        "ScreenRecorder",
-                        displayMetrics.widthPixels,
-                        displayMetrics.heightPixels,
-                        displayMetrics.densityDpi,
-                        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                        surface,
-                        callback,
-                        new Handler(Looper.getMainLooper())
-                );
-                
-                Log.d(TAG, "VirtualDisplay created via reflection: " + (vd != null));
-                return vd;
-            } catch (Exception e) {
-                Log.e(TAG, "Failed to create VirtualDisplay via reflection", e);
-                return null;
-            }
-        } else {
             VirtualDisplay vd = projection.createVirtualDisplay(
                     "ScreenRecorder",
                     displayMetrics.widthPixels,
@@ -75,11 +35,14 @@ public class MediaProjectionHelper {
                     displayMetrics.densityDpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     surface,
-                    null,
-                    null
+                    callback,
+                    new Handler(Looper.getMainLooper())
             );
-            Log.d(TAG, "VirtualDisplay created (API <34): " + (vd != null));
+            Log.d(TAG, "VirtualDisplay created: " + (vd != null));
             return vd;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to create VirtualDisplay", e);
+            return null;
         }
     }
 }
