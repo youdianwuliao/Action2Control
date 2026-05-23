@@ -11,8 +11,8 @@ android {
         applicationId = "com.action2control"
         minSdk = 24
         targetSdk = 34
-        versionCode = 12
-        versionName = "0.12"
+        versionCode = 25
+        versionName = "0.25"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

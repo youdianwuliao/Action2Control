@@ -381,20 +381,24 @@ class FloatingControlService : Service() {
         try {
             Log.d(TAG, "=== Starting analyzeAndSave for video: $videoPath ===")
             
-            // 检查视频文件
+            // 1. 检查视频文件
             val videoFile = java.io.File(videoPath)
             val fileSize = videoFile.length()
             Log.d(TAG, "Video file size: $fileSize bytes")
             
-            if (!videoFile.exists() || fileSize < 1024) {
-                Log.e(TAG, "Video file is too small or does not exist")
-                tvStatus.text = "视频文件无效"
-                Toast.makeText(this, "录制失败：视频文件无效", Toast.LENGTH_SHORT).show()
+            // 20KB 阈值，正常录制 1 秒至少应有 50KB+
+            if (!videoFile.exists() || fileSize < 20 * 1024) {
+                Log.e(TAG, "Video file is too small or does not exist ($fileSize bytes)")
+                tvStatus.text = "录制文件过小"
+                Toast.makeText(this, "录制时间过短或异常，请录制至少 2 秒", Toast.LENGTH_LONG).show()
                 removeFloatingWindow()
                 stopSelf(serviceStartId)
                 return
             }
 
+            Log.d(TAG, "Video file valid, starting analysis...")
+
+            // 2. 执行分析
             val actionSequence = analyzeVideo(this, videoPath) { current, total, phase ->
                 Handler(Looper.getMainLooper()).post {
                     tvStatus.text = "$phase: $current/$total"
@@ -427,7 +431,7 @@ class FloatingControlService : Service() {
             } else {
                 Log.w(TAG, "No actions recognized from video")
                 tvStatus.text = "未识别到动作"
-                Toast.makeText(this, "未识别到有效动作", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "未识别到有效动作 (请确保画面清晰、动作幅度足够)", Toast.LENGTH_LONG).show()
 
                 Handler(Looper.getMainLooper()).postDelayed({
                     removeFloatingWindow()

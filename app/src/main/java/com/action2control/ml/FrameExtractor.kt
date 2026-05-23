@@ -16,7 +16,7 @@ class FrameExtractor(private val context: Context) {
 
     companion object {
         private const val TAG = "FrameExtractor"
-        private const val DEFAULT_FRAME_INTERVAL_US = 500_000L // 0.5 秒
+        private const val DEFAULT_FRAME_INTERVAL_US = 200_000L // 0.2 秒 (5 FPS)
     }
 
     /**
